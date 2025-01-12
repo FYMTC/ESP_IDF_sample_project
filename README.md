@@ -45,4 +45,18 @@ gir clone https://github.com/lovyan03/LovyanGFX.git
 
 DMA 和PSRAM 不能一起开
 
+通过 menuconfig 启用配置项：IDF_EXPERIMENTAL_FEATURES SPIRAM_SPEED_120M SPIRAM_MODE_OCT 启用 PSRAM 120M 八进制 （DDR）
 
+main文件夹添加新的源文件，提示undefined reference，需要在源文件的头文件上加上如
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void cube_game_start();
+
+#ifdef __cplusplus
+}
+#endif
+
+这样才能找到void cube_game_start();

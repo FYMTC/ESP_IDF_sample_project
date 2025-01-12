@@ -4,7 +4,7 @@
 static const char *TAG = "main";
 static bool spi_initialized = false; // 标记 SPI 总线是否已初始化
 sdmmc_card_t *card = NULL;
-
+QueueHandle_t gpio_evt_queue = NULL;
 /* Display */
 LGFX_tft tft;
 static void disp_init(void);
@@ -158,6 +158,16 @@ void initialize_spi_bus()
     ESP_LOGI(TAG, "SPI bus initialized");
 }
 
+void deinitialize_spi_bus()
+{
+    if (spi_initialized)
+    {
+        spi_bus_free(SPI2_HOST);
+        spi_initialized = false;
+        ESP_LOGI(TAG, "SPI bus deinitialized");
+    }
+}
+
 void mount_sd_card()
 {
 
@@ -172,7 +182,7 @@ void mount_sd_card()
     // 配置 SDSPI 设备
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
     slot_config.gpio_cs = SD_CS_PIN; // GPIO_NUM_5
-    slot_config.host_id = SPI2_HOST; // 使用 SPI2 主机
+    slot_config.host_id = SDCARD_SPIHOST; // 使用 SPI2 主机
 
     // 配置挂载参数
     esp_vfs_fat_mount_config_t mount_config = {
@@ -185,46 +195,11 @@ void mount_sd_card()
     if (ret == ESP_OK)
     {
         ESP_LOGI(TAG, "SD card mounted successfully");
-        // 输出 SD 卡基本信息
+
         if (card)
         {
-            ESP_LOGI(TAG, "SD card information:");
-            ESP_LOGI(TAG, "  Manufacturer ID: 0x%02X", card->cid.mfg_id);
-            ESP_LOGI(TAG, "  OEM/Application ID: %d", card->cid.oem_id);
-            ESP_LOGI(TAG, "  Product Name: %s", card->cid.name);
-            ESP_LOGI(TAG, "  Product Revision: %d.%d",
-                     card->cid.revision, card->cid.revision);
-            ESP_LOGI(TAG, "  Serial Number: %d", card->cid.serial);
-
-            uint8_t mfg_month = (card->cid.date >> 8) & 0x0F;  // 生产月份
-            uint8_t mfg_year = (card->cid.date & 0xFF) + 2000; // 生产年份
-            ESP_LOGI(TAG, "  Manufacture Date: %d/%d", mfg_month, mfg_year);
-
-            ESP_LOGI(TAG, "  Card Size: %llu MB",
-                     ((uint64_t)card->csd.capacity) * card->csd.sector_size / (1024 * 1024));
-            ESP_LOGI(TAG, "  Sector Size: %d bytes", card->csd.sector_size);
-            ESP_LOGI(TAG, "  Max Frequency: %d kHz", card->max_freq_khz);
-            ESP_LOGI(TAG, "  Real Frequency: %d kHz", card->real_freq_khz);
-            ESP_LOGI(TAG, "  Relative Card Address (RCA): 0x%04X", card->rca);
-            if (card->is_mem)
-            {
-                ESP_LOGI(TAG, "  Card Type: Memory Card");
-            }
-            else if (card->is_sdio)
-            {
-                ESP_LOGI(TAG, "  Card Type: SDIO Card");
-            }
-            else if (card->is_mmc)
-            {
-                ESP_LOGI(TAG, "  Card Type: MMC Card");
-            }
-            else
-            {
-                ESP_LOGI(TAG, "  Card Type: Unknown");
-            }
-            ESP_LOGI(TAG, "  Number of IO Functions: %d", card->num_io_functions);
-            ESP_LOGI(TAG, "  Bus Width: %d-bit", 1 << card->log_bus_width);
-            ESP_LOGI(TAG, "  Supports DDR Mode: %s", card->is_ddr ? "Yes" : "No");
+            // 输出 SD 卡基本信息
+            sdmmc_card_print_info(stdout, card);
         }
     }
     else
@@ -235,26 +210,12 @@ void mount_sd_card()
 
 void unmount_sd_card()
 {
-    /*if (card)
-    {
-        esp_vfs_fat_sdcard_unmount("/sdcard", card); // 使用挂载路径和 card 指针
-        card = NULL;
-        ESP_LOGI(TAG, "SD card unmounted");
-    }*/
+    deinitialize_spi_bus();
     if (card)
     {
         esp_vfs_fat_sdcard_unmount("/sdcard", card);
         card = NULL;
         ESP_LOGI(TAG, "SD card unmounted");
-    }
-}
-void deinitialize_spi_bus()
-{
-    if (spi_initialized)
-    {
-        spi_bus_free(SPI2_HOST);
-        spi_initialized = false;
-        ESP_LOGI(TAG, "SPI bus deinitialized");
     }
 }
 
@@ -302,6 +263,41 @@ void gpio_task(void *arg)
         {
             // ESP_LOGW(TAG, "Timeout waiting for GPIO event");
         }
+    }
+}
+
+void sdcardinit(void){
+    // 配置 GPIO 引脚
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << SD_DET_PIN,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_ANYEDGE};
+    gpio_config(&io_conf);
+
+    // 创建 GPIO 事件队列
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+    if (gpio_evt_queue == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create queue");
+        return;
+    }
+
+    // 创建 GPIO 任务
+    ESP_LOGI(TAG, "xTaskCreate gpio_task");
+    xTaskCreatePinnedToCore(gpio_task, "gpio_task", 1024*4, NULL, 1, NULL, 1);
+
+    // 安装 GPIO 中断服务
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(SD_DET_PIN, gpio_isr_handler, (void *)SD_DET_PIN);
+
+    // 上电时检查 SD_DET_PIN 状态
+    bool sd_detected = gpio_get_level(SD_DET_PIN) == 0; // 低电平表示 SD 卡插入
+    if (sd_detected)
+    {
+        ESP_LOGI(TAG, "SD card detected on boot");
+        gpio_isr_handler((void *)SD_DET_PIN); // 模拟 GPIO 中断事件
     }
 }
 
@@ -450,15 +446,17 @@ void lv_port_disp_init(void)
         {
             ESP_LOGI(TAG, "malloc buffer from PSRAM successful");
         }
+        lv_disp_draw_buf_init(&draw_buf_dsc_3, buf_3_1, buf_3_2,
+                          MY_DISP_HOR_RES * MY_DISP_VER_RES); /*Initialize the display buffer*/
     #else
-        //static lv_color_t *buf_3_1 = (lv_color_t *)heap_caps_malloc(MY_DISP_VER_RES * MY_DISP_HOR_RES * sizeof(lv_color_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-        //static lv_color_t *buf_3_2 = (lv_color_t *)heap_caps_malloc(MY_DISP_VER_RES * MY_DISP_HOR_RES * sizeof(lv_color_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-        static lv_color_t *buf_3_1 = (lv_color_t *)malloc(MY_DISP_HOR_RES * MY_DISP_VER_RES * sizeof(lv_color_t)/2);
-        static lv_color_t *buf_3_2 = (lv_color_t *)malloc(MY_DISP_HOR_RES * MY_DISP_VER_RES * sizeof(lv_color_t)/2);
-    #endif   
+        static lv_color_t *buf_3_1 = (lv_color_t *)heap_caps_malloc(MY_DISP_VER_RES * MY_DISP_HOR_RES * sizeof(lv_color_t)/7, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+        static lv_color_t *buf_3_2 = (lv_color_t *)heap_caps_malloc(MY_DISP_VER_RES * MY_DISP_HOR_RES * sizeof(lv_color_t)/7, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+        // static lv_color_t *buf_3_1 = (lv_color_t *)malloc(MY_DISP_HOR_RES * MY_DISP_VER_RES * sizeof(lv_color_t)/2);
+        // static lv_color_t *buf_3_2 = (lv_color_t *)malloc(MY_DISP_HOR_RES * MY_DISP_VER_RES * sizeof(lv_color_t)/2);
+      
     lv_disp_draw_buf_init(&draw_buf_dsc_3, buf_3_1, buf_3_2,
-                          MY_DISP_HOR_RES * MY_DISP_VER_RES/2); /*Initialize the display buffer*/
-
+                          MY_DISP_HOR_RES * MY_DISP_VER_RES/7); /*Initialize the display buffer*/
+    #endif 
 #endif
     // 获取内部 RAM 的内存信息
     size_t free_size = heap_caps_get_free_size(MALLOC_CAP_INTERNAL)/1024;
