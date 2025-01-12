@@ -45,4 +45,44 @@ gir clone https://github.com/lovyan03/LovyanGFX.git
 
 DMA 和PSRAM 不能一起开
 
+通过 menuconfig 启用配置项：IDF_EXPERIMENTAL_FEATURES SPIRAM_SPEED_120M SPIRAM_MODE_OCT 启用 PSRAM 120M 八进制 （DDR）
 
+main文件夹添加新的源文件，提示undefined reference，需要在源文件的头文件上加上如
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void cube_game_start();
+
+#ifdef __cplusplus
+}
+#endif
+
+这样才能找到void cube_game_start();
+
+1. 推送代码
+添加文件并提交更改
+将所有文件添加到暂存区：
+git add .
+或者添加特定文件：
+git add <文件名>
+2. 提交更改：
+git commit -m "Initial commit"
+将 "Initial commit" 替换为你的提交信息。
+3. 推送到 GitHub 仓库
+如果是第一次推送，需要设置上游分支：
+git push --set-upstream origin main
+main 是默认分支名称。如果你的 GitHub 仓库使用其他分支名称（如 master），请替换为相应的分支名。
+如果不是第一次推送，可以直接运行：
+git push origin main
+
+在components\lvgl__lvgl\env_support\cmake\esp.cmake
+添加fatfs的依赖
+
+idf_component_register(SRCS ${SOURCES} ${EXAMPLE_SOURCES} ${DEMO_SOURCES}
+      INCLUDE_DIRS ${LVGL_ROOT_DIR} ${LVGL_ROOT_DIR}/src ${LVGL_ROOT_DIR}/../
+                   ${LVGL_ROOT_DIR}/examples ${LVGL_ROOT_DIR}/demos
+      REQUIRES esp_timer fatfs)
+
+FAT Filesystem support 开启长文件名支持

@@ -4,5 +4,8 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 set(COMPONENT_REQUIRES driver)
+add_compile_options(-fdiagnostics-color=always)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32s3n16r8-project)
+
+

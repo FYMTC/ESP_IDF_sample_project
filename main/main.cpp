@@ -2,64 +2,92 @@
 #include "esp32_s3_main.h"
 
 static const char *TAG = "MAIN";
-QueueHandle_t gpio_evt_queue = NULL;
+
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "START");
-    /**/
-    // 配置 GPIO 引脚
-    gpio_config_t io_conf = {
-        .pin_bit_mask = 1ULL << SD_DET_PIN,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_ANYEDGE};
-    gpio_config(&io_conf);
 
-    // 创建 GPIO 事件队列
-    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    if (gpio_evt_queue == NULL)
+    // 初始化 SD 卡
+    sdcardinit();
+    init_spiffs();
+    // 初始化 NVS
+    esp_err_t err = init_nvs();
+    if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to create queue");
+        ESP_LOGE(TAG, "NVS initialization failed");
         return;
     }
-
-    // 创建 GPIO 任务
-    ESP_LOGI(TAG, "xTaskCreate gpio_task");
-    xTaskCreate(gpio_task, "gpio_task", 1024*4, NULL, 1, NULL);
-
-    // 安装 GPIO 中断服务
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(SD_DET_PIN, gpio_isr_handler, (void *)SD_DET_PIN);
-
-    // 上电时检查 SD_DET_PIN 状态
-    bool sd_detected = gpio_get_level(SD_DET_PIN) == 0; // 低电平表示 SD 卡插入
-    if (sd_detected)
-    {
-        ESP_LOGI(TAG, "SD card detected on boot");
-        gpio_isr_handler((void *)SD_DET_PIN); // 模拟 GPIO 中断事件
-    }
-
     // 初始化 I2C
     i2c_master_init(I2C_MASTER_NUM_0, I2C_MASTER_SDA_IO_0, I2C_MASTER_SCL_IO_0);
     i2c_master_init(I2C_MASTER_NUM_1, I2C_MASTER_SDA_IO_1, I2C_MASTER_SCL_IO_1);
     i2c_scan(I2C_MASTER_NUM_0);
     i2c_scan(I2C_MASTER_NUM_1);
-/**/
+    // 初始化 lvgl，屏幕，触摸
     lv_init();
     lv_port_disp_init();
     lv_port_indev_init();
+    
+    start_info_task();
+    //  lvgl demos
+    //  lv_demo_benchmark();
+    //  lv_demo_stress();
+    //  lv_demo_music();
+    //  lv_demo_widgets();
 
-    lv_demo_benchmark();
-    //lv_demo_stress();
-    //lv_demo_music();
-    //lv_demo_widgets();
+    // lvgl games
+    // cube_game_start();
+    // ballgame_start();
+    // fly_game_start();
+    // pvz_start();
+#if 1
 
-    start_lvgl_task();
+    create_menu();
+    bt_start();
+#else
+    // A:/sdcard/1.jpg
+    // 2.png
+    // R.jpg
+    lv_obj_t *img = lv_img_create(lv_scr_act());
+    lv_img_set_src(img, "S:/sdcard/1.jpg");
 
-    //  while (1)
-    // {  
-    //     lv_timer_handler();
-    //     vTaskDelay(pdMS_TO_TICKS(10));
+    // lv_fs_file_t f;
+    // lv_fs_res_t res = lv_fs_open(&f, "S:/image.bmp", LV_FS_MODE_RD);
+    // if (res != LV_FS_RES_OK) {
+    //     ESP_LOGE(TAG, "Failed to open image from SD card");
+    //     return;
     // }
+
+    // lv_img_dsc_t img_dsc;
+    // //lv_img_decoder_bmp_init();  // 初始化 BMP 解码器（如果是 BMP 文件）
+
+    // res = lv_img_decoder_open(&f, &img_dsc, LV_IMG_CF_RAW, 0);
+    // if (res != LV_FS_RES_OK) {
+    //     ESP_LOGE(TAG, "Failed to decode image");
+    //     return;
+    // }
+    // lv_img_set_src(img, &img_dsc);
+    //lv_fs_close(&f);
+
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+    const void *src = lv_img_get_src(img);
+    if (src == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to load image\n");
+    }
+    else
+    {
+        printf("Image loaded successfully\n");
+    }
+    lv_img_set_src(img, src);
+
+    list_sd_files("/sdcard");
+
+#endif
+    // start_lvgl_task();
+
+    while (1)
+    {
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
