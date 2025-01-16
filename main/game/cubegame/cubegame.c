@@ -4,7 +4,7 @@
 #include "cubegame.h"
 
 static lv_obj_t * botton_exit;
-static lv_obj_t *  screen1;   
+static lv_obj_t * screen1;   
 static lv_obj_t * cubewindow;
 static lv_obj_t * botton_left;
 static lv_obj_t * botton_right;
@@ -19,27 +19,36 @@ static lv_obj_t * panel;
 static lv_obj_t * panellable;
 static lv_obj_t * btext;
 static lv_obj_t * score_lable;
-static lv_obj_t *	next_lable;
+static lv_obj_t * next_lable;
 static lv_obj_t * gameover_botton;
-static lv_obj_t *	gameover_lable;
+static lv_obj_t * gameover_lable;
 static lv_obj_t * exit_lable;
 static int score;
 
-
+#define CUBE_SIZE 12  // 方块大小
+#define CUBE_COLS 10  // 游戏区域列数
+#define CUBE_ROWS 20  // 游戏区域行数
+// Calculate the starting position of the game window dynamically
+static lv_coord_t cube_win_x;  // X position of the game window
+static lv_coord_t cube_win_y;  // Y position of the game window
+// Define the position of the preview area (next cube)
+static lv_coord_t cube_pre_x;  // X position of the preview area
+static lv_coord_t cube_pre_y;  // Y position of the preview area
 
 typedef struct
 {
-	lv_obj_t * cube;
-	int alive;		
-}cube_matrix_type;
+    lv_obj_t * cube;
+    int alive;        
+} cube_matrix_type;
 
 typedef struct
 {
-	lv_obj_t * cube;
-	int alive;	
-  int x;
-  int y;	
-}cube_active_type;
+    lv_obj_t * cube;
+    int alive;    
+    int x;
+    int y;    
+} cube_active_type;
+
 
 static const int cube_lib[7][4][4]={
     {{0,0,0,0},
@@ -79,10 +88,11 @@ static const int cube_lib[7][4][4]={
 };
 
 
-static const int cube_color_lib[7]={0xff0000,0xff8000,0xffff00,0x00ff00,0x0080ff,0x0000ff,0xff00ff,};
-static cube_matrix_type  cube_matrix[20][10]={0,};
-static cube_matrix_type  cube_pre[4][4]={0,};
-static cube_active_type  cube_active[4][4]={0,};
+static const int cube_color_lib[7] = {0xff0000, 0xff8000, 0xffff00, 0x00ff00, 0x0080ff, 0x0000ff, 0xff00ff};
+static cube_matrix_type cube_matrix[CUBE_ROWS][CUBE_COLS] = {0,};
+static cube_matrix_type cube_pre[4][4] = {0,};
+static cube_active_type cube_active[4][4] = {0,};
+
 static void timer_cb1(lv_timer_t * t);
 static void cube_ready();
 static void cube_send();
@@ -98,99 +108,103 @@ static bool down_hit_test();
 static bool left_hit_test();
 static bool right_hit_test();
 static void cube_hold();
-static bool cube_win_cover_test( cube_matrix_type  matrix[20][10], cube_active_type  temp[4][4]);
-static bool cube_out_of_win(cube_active_type  temp[4][4]);
+static bool cube_win_cover_test(cube_matrix_type matrix[CUBE_ROWS][CUBE_COLS], cube_active_type temp[4][4]);
+static bool cube_out_of_win(cube_active_type temp[4][4]);
 static int cube_clrline();
 static void cube_rotation();
 static void cube_move_1line_down(int line);
 static void cube_move_all_down();
 static void cube_all_init();
 static void lv_anim_exec_xcb(void * var, int32_t v);
-static void ready_cb( lv_anim_t * var);
+static void ready_cb(lv_anim_t * var);
 void print_cubematrix();
 static void all_clear(lv_event_t * e);
 
-
 void cube_game_start(void)
 {
-	int i,j;	
-	screen1=lv_tileview_create(lv_scr_act());
-	lv_obj_set_style_bg_color(screen1,lv_color_hex(0x000000), LV_PART_MAIN);
-	lv_obj_clear_flag(screen1, LV_OBJ_FLAG_SCROLLABLE);
-		
-	botton_exit=lv_btn_create(screen1);
-	lv_obj_set_style_bg_color(botton_exit,lv_color_hex(0x000040), LV_PART_MAIN);
-  exit_lable=lv_label_create(botton_exit);
-	lv_label_set_text(exit_lable, "<EXIT");
-	lv_obj_set_style_text_color(exit_lable,lv_color_hex(0xffffff), LV_PART_MAIN);
-	lv_obj_add_event_cb(botton_exit,all_clear,LV_EVENT_RELEASED,0);
-		
-	score_lable=lv_label_create(screen1);
-	lv_label_set_text_fmt(score_lable, "SCORE:%d",score);
-	lv_obj_set_pos(score_lable,20,40);
-	lv_obj_set_style_text_color(score_lable,lv_color_hex(0xffffff), LV_PART_MAIN);
-	
-	next_lable=lv_label_create(screen1);
-	lv_label_set_text(next_lable, "NEXT");
-	lv_obj_set_pos(next_lable,380,20);
-	lv_obj_set_style_text_color(next_lable,lv_color_hex(0xffffff), LV_PART_MAIN);
-	
-	cubewindow=lv_obj_create(screen1);
-	lv_obj_set_style_bg_color(cubewindow,lv_color_hex(0x000000), LV_PART_MAIN);
-	lv_obj_set_size(cubewindow,cube_size*10+2,cube_size*20+2);
-	lv_obj_set_pos(cubewindow,cube_win_x-1,cube_win_y);
-	lv_obj_set_style_border_width(cubewindow, 0, LV_PART_MAIN);
-	lv_obj_set_style_radius(cubewindow,0,LV_PART_MAIN);
-	lv_obj_set_style_outline_color(cubewindow,lv_color_hex(0x005000),LV_PART_MAIN);
-	lv_obj_set_style_outline_width(cubewindow,2,LV_PART_MAIN);
-	lv_obj_clear_flag(cubewindow, LV_OBJ_FLAG_SCROLLABLE);
-	
-	botton_left=lv_btn_create(screen1);
-	lv_obj_set_pos(botton_left,10,150);
-	lv_obj_set_size(botton_left,50,50);
-	lv_obj_set_style_bg_color(botton_left,lv_color_hex(0x000040), LV_PART_MAIN);
-	lable_left=lv_label_create(botton_left);
-	lv_label_set_text(lable_left, "<<-");
-	lv_obj_set_align(lable_left,LV_ALIGN_CENTER);
-	lv_obj_add_event_cb(botton_left,botton_left_event_cb,LV_EVENT_PRESSED,0);
-  lv_obj_add_event_cb(botton_left,botton_left_event_cb,LV_EVENT_LONG_PRESSED_REPEAT,0);		
-	
-	botton_right=lv_btn_create(screen1);
-	lv_obj_set_pos(botton_right,110,150);
-	lv_obj_set_size(botton_right,50,50);
-	lv_obj_set_style_bg_color(botton_right,lv_color_hex(0x000040), LV_PART_MAIN);
-	lable_right=lv_label_create(botton_right);
-	lv_label_set_text(lable_right, "->>");
-	lv_obj_set_align(lable_right,LV_ALIGN_CENTER);
-	lv_obj_add_event_cb(botton_right,botton_right_event_cb,LV_EVENT_PRESSED,0);
-  lv_obj_add_event_cb(botton_right,botton_right_event_cb,LV_EVENT_LONG_PRESSED_REPEAT,0);		
-	
-	botton_down=lv_btn_create(screen1);
-	lv_obj_set_pos(botton_down,60,200);
-	lv_obj_set_size(botton_down,50,60);
-	lv_obj_set_style_bg_color(botton_down,lv_color_hex(0x000040), LV_PART_MAIN);
-	lable_down=lv_label_create(botton_down);
-	lv_label_set_text(lable_down, "V");
-	lv_obj_set_align(lable_down,LV_ALIGN_CENTER);
-	lv_obj_add_event_cb(botton_down,botton_down_event_cb,LV_EVENT_PRESSED,0);	
-	lv_obj_add_event_cb(botton_down,botton_down_event_cb1,LV_EVENT_RELEASED,0);	
-	
-	
-	botton_angle=lv_btn_create(screen1);
-	lv_obj_set_pos(botton_angle,360,150);
-	lv_obj_set_size(botton_angle,60,60);
-	lv_obj_set_style_bg_color(botton_angle,lv_color_hex(0x808000), LV_PART_MAIN);
-	lable_angle=lv_label_create(botton_angle);
-	lv_label_set_text(lable_angle, "O");
-	lv_obj_set_align(lable_angle,LV_ALIGN_CENTER);
-	lv_obj_add_event_cb(botton_angle,botton_angle_event_cb,LV_EVENT_PRESSED,0);	
-	
-	cube_all_init();	
-	cube_ready();
-	cube_send();
-	cube_ready();	
-	t1=lv_timer_create(timer_cb1, 1000, 0);	
+    int i, j;
+    lv_coord_t screen_width = lv_obj_get_width(lv_scr_act());
+    lv_coord_t screen_height = lv_obj_get_height(lv_scr_act());
 
+    // Calculate the starting position of the game window
+    cube_win_x = (screen_width - (CUBE_SIZE * CUBE_COLS)) / 2;
+    cube_win_y = (screen_height - (CUBE_SIZE * CUBE_ROWS)) / 2;
+
+    screen1 = lv_tileview_create(lv_scr_act());
+    lv_obj_set_style_bg_color(screen1, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_clear_flag(screen1, LV_OBJ_FLAG_SCROLLABLE);
+
+    botton_exit = lv_btn_create(screen1);
+    lv_obj_set_style_bg_color(botton_exit, lv_color_hex(0x000040), LV_PART_MAIN);
+    exit_lable = lv_label_create(botton_exit);
+    lv_label_set_text(exit_lable, "<EXIT");
+    lv_obj_set_style_text_color(exit_lable, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_add_event_cb(botton_exit, all_clear, LV_EVENT_RELEASED, 0);
+
+    score_lable = lv_label_create(screen1);
+    lv_label_set_text_fmt(score_lable, "SCORE:%d", score);
+    lv_obj_align(score_lable,LV_ALIGN_TOP_MID,0,10);
+    lv_obj_set_style_text_color(score_lable, lv_color_hex(0xffffff), LV_PART_MAIN);
+
+    next_lable = lv_label_create(screen1);
+    lv_label_set_text(next_lable, "NEXT");
+    lv_obj_align_to(next_lable,botton_exit,LV_ALIGN_OUT_BOTTOM_MID,0,10);
+    lv_obj_set_style_text_color(next_lable, lv_color_hex(0xffffff), LV_PART_MAIN);
+
+    cubewindow = lv_obj_create(screen1);
+    lv_obj_set_style_bg_color(cubewindow, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_size(cubewindow, CUBE_SIZE * CUBE_COLS + 2, CUBE_SIZE * CUBE_ROWS + 2);
+    lv_obj_set_pos(cubewindow, (screen_width - (CUBE_SIZE * CUBE_COLS)) / 2, (screen_height - (CUBE_SIZE * CUBE_ROWS)) / 2);
+    lv_obj_set_style_border_width(cubewindow, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(cubewindow, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_color(cubewindow, lv_color_hex(0x005000), LV_PART_MAIN);
+    lv_obj_set_style_outline_width(cubewindow, 2, LV_PART_MAIN);
+    lv_obj_clear_flag(cubewindow, LV_OBJ_FLAG_SCROLLABLE);
+
+    botton_left = lv_btn_create(screen1);
+    lv_obj_align_to(botton_left,next_lable,LV_ALIGN_OUT_BOTTOM_MID,0,30);
+    lv_obj_set_size(botton_left, LV_PCT(15), LV_PCT(15));
+    lv_obj_set_style_bg_color(botton_left, lv_color_hex(0x000040), LV_PART_MAIN);
+    lable_left = lv_label_create(botton_left);
+    lv_label_set_text(lable_left, "<<-");
+    lv_obj_set_align(lable_left, LV_ALIGN_CENTER);
+    lv_obj_add_event_cb(botton_left, botton_left_event_cb, LV_EVENT_PRESSED, 0);
+    lv_obj_add_event_cb(botton_left, botton_left_event_cb, LV_EVENT_LONG_PRESSED_REPEAT, 0);
+
+    botton_right = lv_btn_create(screen1);
+     lv_obj_align_to(botton_right,botton_left,LV_ALIGN_OUT_BOTTOM_MID,0,30);
+    lv_obj_set_size(botton_right, LV_PCT(15), LV_PCT(15));
+    lv_obj_set_style_bg_color(botton_right, lv_color_hex(0x000040), LV_PART_MAIN);
+    lable_right = lv_label_create(botton_right);
+    lv_label_set_text(lable_right, "->>");
+    lv_obj_set_align(lable_right, LV_ALIGN_CENTER);
+    lv_obj_add_event_cb(botton_right, botton_right_event_cb, LV_EVENT_PRESSED, 0);
+    lv_obj_add_event_cb(botton_right, botton_right_event_cb, LV_EVENT_LONG_PRESSED_REPEAT, 0);
+
+    botton_down = lv_btn_create(screen1);
+    lv_obj_align_to(botton_down,botton_right,LV_ALIGN_OUT_BOTTOM_MID,0,30);
+    lv_obj_set_size(botton_down,LV_PCT(15), LV_PCT(15));
+    lv_obj_set_style_bg_color(botton_down, lv_color_hex(0x000040), LV_PART_MAIN);
+    lable_down = lv_label_create(botton_down);
+    lv_label_set_text(lable_down, "V");
+    lv_obj_set_align(lable_down, LV_ALIGN_CENTER);
+    lv_obj_add_event_cb(botton_down, botton_down_event_cb, LV_EVENT_PRESSED, 0);
+    lv_obj_add_event_cb(botton_down, botton_down_event_cb1, LV_EVENT_RELEASED, 0);
+
+    botton_angle = lv_btn_create(screen1);
+    lv_obj_align(botton_angle,LV_ALIGN_BOTTOM_LEFT,0,0);
+    lv_obj_set_size(botton_angle,LV_PCT(15), LV_PCT(15));
+    lv_obj_set_style_bg_color(botton_angle, lv_color_hex(0x808000), LV_PART_MAIN);
+    lable_angle = lv_label_create(botton_angle);
+    lv_label_set_text(lable_angle, "O");
+    lv_obj_set_align(lable_angle, LV_ALIGN_CENTER);
+    lv_obj_add_event_cb(botton_angle, botton_angle_event_cb, LV_EVENT_PRESSED, 0);
+
+    cube_all_init();
+    cube_ready();
+    cube_send();
+    cube_ready();
+    t1 = lv_timer_create(timer_cb1, 1000, 0);
 }
 
 void gameoverbotton_event_cb(lv_event_t * e)
@@ -239,8 +253,8 @@ void cube_ready()
 					if(cube_lib[cube_select][i][j])
 					{
 						cube_pre[i][j].cube=lv_btn_create(screen1);
-						lv_obj_set_pos(cube_pre[i][j].cube,cube_pre_x+j*cube_size,cube_pre_y+i*cube_size);
-	          lv_obj_set_size(cube_pre[i][j].cube,cube_size,cube_size);
+						lv_obj_set_pos(cube_pre[i][j].cube,cube_pre_x+j*CUBE_SIZE,cube_pre_y+i*CUBE_SIZE);
+	          lv_obj_set_size(cube_pre[i][j].cube,CUBE_SIZE,CUBE_SIZE);
 						lv_obj_set_style_bg_color(cube_pre[i][j].cube,lv_color_hex(cube_color_lib[cube_select]), LV_PART_MAIN);
 						lv_obj_set_style_radius(cube_pre[i][j].cube,1,LV_PART_MAIN);
 						lv_obj_set_style_border_width(cube_pre[i][j].cube, 1, LV_PART_MAIN);
@@ -278,7 +292,7 @@ void cube_send()
 						cube_active[i][j].cube=cube_pre[i][j].cube;
 						cube_active[i][j].alive=1;
 						
-						lv_obj_set_pos(cube_pre[i][j].cube,cube_win_x+(j+3)*cube_size,cube_win_y+(i-1)*cube_size);
+						lv_obj_set_pos(cube_pre[i][j].cube,cube_win_x+(j+3)*CUBE_SIZE,cube_win_y+(i-1)*CUBE_SIZE);
 						
 	          cube_pre[i][j].cube=0;
 						cube_pre[i][j].alive=0;
@@ -316,7 +330,7 @@ void cube_move_down()
 					if(cube_active[i][j].alive)
 					{
 						cube_active[i][j].y++;
-						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*cube_size,cube_win_y+(cube_active[i][j].y)*cube_size);	          
+						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*CUBE_SIZE,cube_win_y+(cube_active[i][j].y)*CUBE_SIZE);	          
 					}
 					else
 					{
@@ -335,7 +349,7 @@ void cube_move_left()
 					if(cube_active[i][j].alive)
 					{
 						cube_active[i][j].x--;
-						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*cube_size,cube_win_y+(cube_active[i][j].y)*cube_size);	          
+						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*CUBE_SIZE,cube_win_y+(cube_active[i][j].y)*CUBE_SIZE);	          
 					}
 					else
 					{
@@ -354,7 +368,7 @@ void cube_move_right()
 					if(cube_active[i][j].alive)
 					{
 						cube_active[i][j].x++;
-						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*cube_size,cube_win_y+(cube_active[i][j].y)*cube_size);	          
+						lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*CUBE_SIZE,cube_win_y+(cube_active[i][j].y)*CUBE_SIZE);	          
 					}
 					else
 					{
@@ -480,7 +494,7 @@ void cube_rotation()
 									{
 										if(cube_active[i][j].alive)
 										{						
-											lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*cube_size,cube_win_y+(cube_active[i][j].y)*cube_size);	 						
+											lv_obj_set_pos(cube_active[i][j].cube,cube_win_x+(cube_active[i][j].x)*CUBE_SIZE,cube_win_y+(cube_active[i][j].y)*CUBE_SIZE);	 						
 										}
 										
 									}
@@ -590,23 +604,23 @@ void ready_cb( lv_anim_t * var)
 
 
 void cube_move_1line_down(int line)
-{int i,j,l;
-	for(i=line;i>0;i--)
-	{		
-		for(j=0;j<10;j++)
-		{
-				cube_matrix[i][j].alive=cube_matrix[i-1][j].alive;
-				cube_matrix[i][j].cube=cube_matrix[i-1][j].cube;
-				
-			if(cube_matrix[i][j].alive==1)
-			{
-								lv_obj_set_pos(cube_matrix[i][j].cube,lv_obj_get_x(cube_matrix[i][j].cube),lv_obj_get_y(cube_matrix[i][j].cube)+cube_size);
-				lv_obj_refr_pos(cube_matrix[i][j].cube);
-			}					
-		}
-	}
-	
-}	 
+{
+    int i, j, l;
+    for (i = line; i > 0; i--)
+    {
+        for (j = 0; j < 10; j++)
+        {
+            cube_matrix[i][j].alive = cube_matrix[i - 1][j].alive;
+            cube_matrix[i][j].cube = cube_matrix[i - 1][j].cube;
+
+            if (cube_matrix[i][j].alive == 1)
+            {
+                lv_obj_set_pos(cube_matrix[i][j].cube, lv_obj_get_x(cube_matrix[i][j].cube), lv_obj_get_y(cube_matrix[i][j].cube) + CUBE_SIZE);
+                lv_obj_refr_pos(cube_matrix[i][j].cube);
+            }
+        }
+    }
+}
 
 
 	

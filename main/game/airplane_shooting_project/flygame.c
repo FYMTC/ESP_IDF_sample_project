@@ -73,6 +73,8 @@ static void boss_delect_cb(lv_anim_t * a);
 static void all_clear(lv_event_t * e);
 static void game_init();
 
+static int screen_width;
+static int screen_height;
 
 void fly_game_start(void)
 {
@@ -83,20 +85,21 @@ void fly_game_start(void)
 	lv_obj_set_style_bg_color(screen1,lv_color_hex(0x000020), LV_PART_MAIN);
 	lv_obj_clear_flag(screen1, LV_OBJ_FLAG_SCROLLABLE);
 	
+	// Get screen resolution
+	screen_width = lv_obj_get_width(lv_scr_act());
+	screen_height = lv_obj_get_height(lv_scr_act());
 	
 	botton_exit=lv_btn_create(screen1);
 	lv_obj_set_style_bg_color(botton_exit,lv_color_hex(0x000040), LV_PART_MAIN);
-  exit_lable=lv_label_create(botton_exit);
+    exit_lable=lv_label_create(botton_exit);
 	lv_label_set_text(exit_lable, "<EXIT");
 	lv_obj_set_style_text_color(exit_lable,lv_color_hex(0xffffff), LV_PART_MAIN);
 	lv_obj_add_event_cb(botton_exit,all_clear,LV_EVENT_RELEASED,0);
 
-
-	
 	fly1=lv_img_create(screen1);
 	lv_img_set_src(fly1, &fly);
-  lv_img_set_angle(fly1, 2700);
-	lv_obj_set_pos(fly1,400,160);
+    lv_img_set_angle(fly1, 2700);
+	lv_obj_set_pos(fly1, screen_width / 2 - 75, screen_height / 2 - 25);
 	
 	score_lable=lv_label_create(screen1);
 	lv_label_set_text(score_lable, "SCORE:");
@@ -108,7 +111,7 @@ void fly_game_start(void)
 	
 	t1=lv_timer_create(timer_cb1, 10, 0);	
 	t2=lv_timer_create(timer_cb2, 200, 0);
-  t3=lv_timer_create(timer_cb3, 30, 0);
+    t3=lv_timer_create(timer_cb3, 30, 0);
 	enemy_create=lv_timer_create(timer_enemy_create_cb, 500, 0);
 }
 
@@ -119,16 +122,16 @@ void game_init(void)
 	for(i=0;i<zidanshuliang;i++)
 	{
 		zidan[i].alive=0;
-	  zidan[i].obj=0;
+	    zidan[i].obj=0;
 	}
 	
 	for(i=0;i<enemyshuliang;i++)
 	{
 		enemy[i].alive=0;
-	  enemy[i].obj=0;
+	    enemy[i].obj=0;
 	}
 	
-  enemy_boss.obj=0;
+    enemy_boss.obj=0;
 	enemy_boss.alive=0;
 	
 }
@@ -157,10 +160,9 @@ void timer_cb3(lv_timer_t * t)
 		boss_live_value=100;
 		enemy_boss.alive=1;
 		enemy_boss.obj=lv_img_create(screen1);
-	  lv_img_set_src(enemy_boss.obj, &enemyboss);
-    lv_img_set_angle(enemy_boss.obj, 900);
-	  lv_obj_set_pos(enemy_boss.obj,-100,105);
-		
+	    lv_img_set_src(enemy_boss.obj, &enemyboss);
+        lv_img_set_angle(enemy_boss.obj, 900);
+	    lv_obj_set_pos(enemy_boss.obj, -100, screen_height / 2 - 50);
 		
 		boss_live=lv_bar_create(enemy_boss.obj);
 		lv_obj_set_style_bg_color(boss_live, lv_color_hex(0xff0000), LV_PART_INDICATOR);
@@ -175,7 +177,7 @@ void timer_cb3(lv_timer_t * t)
 		lv_anim_set_var(&a,&enemy_boss);
 		lv_anim_set_exec_cb(&a,boss_start_cb);
 		lv_anim_set_time(&a,5000);
-		lv_anim_set_values(&a,-100,50);
+		lv_anim_set_values(&a,-100, screen_width / 2 - 50);
 		lv_anim_set_path_cb(&a,lv_anim_path_ease_in_out);
 		lv_anim_start(&a);		
 	}

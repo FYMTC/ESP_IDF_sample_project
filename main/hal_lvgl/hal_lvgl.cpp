@@ -1,5 +1,6 @@
 #include "hal_lvgl.hpp"
 #include "conf.h"
+#include "bt.hpp"
 static const char *TAG = "lvgl_port";
 /* Display */
 LGFX_tft tft;
@@ -7,6 +8,10 @@ static void disp_init(void);
 static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
 /* Touch pad */
 CTP ctp;
+
+mouse_t bt_mouse_indev;
+uint8_t notifyCallback_statue=0;
+
 static void touchpad_init(void);
 static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data);
 lv_indev_t *indev_touchpad;
@@ -14,6 +19,27 @@ lv_indev_t *indev_mouse;
 lv_indev_t *indev_keypad;
 lv_indev_t *indev_encoder;
 lv_indev_t *indev_button;
+
+static bool touchpad_is_pressed(void);
+static void touchpad_get_xy(lv_coord_t * x, lv_coord_t * y);
+
+static void mouse_init(void);
+static void mouse_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data);
+static bool mouse_is_pressed(void);
+static void mouse_get_xy(lv_coord_t * x, lv_coord_t * y);
+
+static void keypad_init(void);
+static void keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data);
+static uint32_t keypad_get_key(void);
+
+static void encoder_init(void);
+static void encoder_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data);
+static void encoder_handler(void);
+
+static void button_init(void);
+static void button_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data);
+static int8_t button_get_pressed_id(void);
+static bool button_is_pressed(uint8_t id);
 /***********************************************************/
 /**********************    lvgl ↓   *********************/
 void lv_port_indev_init(void)
@@ -30,12 +56,11 @@ void lv_port_indev_init(void)
      *  You should shape them according to your hardware
      */
 
-    
+    static lv_indev_drv_t indev_drv;
     /*------------------
      * Touchpad
      * -----------------*/
     #if USE_TOUCHPAD
-    static lv_indev_drv_t indev_drv;
     /*Initialize your touchpad if you have*/
     touchpad_init();
 
@@ -45,9 +70,32 @@ void lv_port_indev_init(void)
     indev_drv.read_cb = touchpad_read;
     indev_touchpad = lv_indev_drv_register(&indev_drv);
     #endif
+
+    /*------------------
+     * Mouse
+     * -----------------*/
+
+    /*Initialize your mouse if you have*/
+    #if USE_MOUSE
+    mouse_init();
+
+    /*Register a mouse input device*/
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = mouse_read;
+    indev_mouse = lv_indev_drv_register(&indev_drv);
+
+    /*Set cursor. For simplicity set a HOME symbol now.*/
+    lv_obj_t * mouse_cursor = lv_label_create(lv_scr_act());
+    lv_obj_set_style_text_font(mouse_cursor, &NotoSansSC_Medium_3500, 0);
+    lv_img_set_src(mouse_cursor, "\xEF\x89\x85");//鼠标字体符号
+    lv_indev_set_cursor(indev_mouse, mouse_cursor);
+    #endif
+
 }
+
 /*------------------
- * Touchpad
+ * 触摸设备
  * -----------------*/
 
 /*Initialize your touchpad*/
@@ -92,6 +140,63 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     // data->point.x = last_x;
     // data->point.y = last_y;
 }
+/*------------------
+ * Mouse
+ * -----------------*/
+
+/*Initialize your mouse*/
+static void mouse_init(void)
+{
+    /*Your code comes here*/
+    bt_mouse_indev.left_button_pressed =false;
+    bt_mouse_indev.right_button_pressed =false;
+    bt_mouse_indev.x_movement =0;
+    bt_mouse_indev.y_movement =0;
+    bt_mouse_indev.data_frame=0;
+}
+
+/*Will be called by the library to read the mouse*/
+static void mouse_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
+{
+    /*Get the current x and y coordinates*/
+    mouse_get_xy(&data->point.x, &data->point.y);
+
+    /*Get whether the mouse button is pressed or released*/
+    if(mouse_is_pressed()) {
+        data->state = LV_INDEV_STATE_PR;
+    }
+    else {
+        data->state = LV_INDEV_STATE_REL;
+    }
+}
+
+/*Return true is the mouse button is pressed*/
+static bool mouse_is_pressed(void)
+{
+    /*Your code comes here*/
+
+    return bt_mouse_indev.left_button_pressed;
+}
+
+/*Get the x and y coordinates if the mouse is pressed*/
+static void mouse_get_xy(lv_coord_t * x, lv_coord_t * y)
+{
+    /*Your code comes here*/
+    static lv_point_t last_pos = {0, 0}; // 保存鼠标的最后位置
+    if(notifyCallback_statue !=bt_mouse_indev.data_frame ){//说明鼠标数据有更新
+    last_pos.x += bt_mouse_indev.x_movement;
+    last_pos.y += bt_mouse_indev.y_movement;
+    if(last_pos.y>MY_DISP_VER_RES){last_pos.y=MY_DISP_VER_RES;}
+    if(last_pos.x>MY_DISP_HOR_RES){last_pos.x=MY_DISP_HOR_RES;}
+    if(last_pos.x<0){last_pos.x=0;}
+    if(last_pos.y<0){last_pos.y=0;}
+    (*x) = last_pos.x;
+    (*y) = last_pos.y;
+    notifyCallback_statue =bt_mouse_indev.data_frame;
+    }
+}
+
+
 
 void lv_port_disp_init(void)
 {
@@ -204,7 +309,7 @@ void lv_port_disp_init(void)
     #endif
     /*Required for Example 3)*/
 
-    disp_drv.full_refresh = 1; // 全屏幕刷新
+    disp_drv.full_refresh = 0; // 全屏幕刷新
     /* Set LVGL software rotation */
     //disp_drv.sw_rotate = 1;//软件旋转屏幕
     // disp_drv.rotated = LV_DISP_ROT_90;

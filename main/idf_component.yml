@@ -1,12 +1,15 @@
 ## IDF Component Manager Manifest File
 dependencies:
   espressif/mpu6050: "^1.2.0"
+  usb_host_hid: "1.0.0"
+  usb_host_msc: "^1.0.0"
   #lvgl/lvgl: "^8.3.7"
   ## Required IDF version
   idf:
     version: ">=4.1.0"
-  nimble_central_utils:
-    path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_central_utils
+  #nimble_central_utils:
+  #  path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_central_utils
+  
   # # Put list of dependencies here
   # # For components maintained by Espressif:
   # component: "~1.0.0"

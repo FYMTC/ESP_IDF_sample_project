@@ -1,4 +1,3 @@
-# 递归获取游戏、UI 和 LVGL 相关的源代码和头文件
 file(GLOB_RECURSE GAME_SRCS
     game/*.c
     game/*.cpp
@@ -23,15 +22,31 @@ set(HAL_LVGL_INCS
     hal_lvgl/
 )
 
+file(GLOB_RECURSE BT_HID_host_SRCS
+    BT_HID_host/*.c
+    BT_HID_host/*.cpp
+)
+set(BT_HID_host_INCS
+    BT_HID_host/
+)
+
+file(GLOB_RECURSE TASKS_SRCS
+    tasks/*.c
+    tasks/*.cpp
+)
+set(TASKS_INCS
+    tasks/
+)
 # 设置额外的组件目录
 set(EXTRA_COMPONENT_DIRS ${PROJECT_SOURCE_DIR}/components)
 #set(COMPONENTS driver)
 #target_link_libraries(${COMPONENT_TARGET} INTERFACE driver)
 # 注册组件并指定源文件、头文件和依赖的库
 idf_component_register(
-    SRCS "main.cpp" "ESP32_S3_main.cpp" ${GAME_SRCS} ${UI_SRCS} ${HAL_LVGL_SRCS}
-    INCLUDE_DIRS "." ${GAME_INCS} ${UI_INCS} ${HAL_LVGL_INCS}
-    REQUIRES fatfs lvgl bt esp_lcd spiffs nvs_flash LovyanGFX esp_hid# 指定依赖的库
+    SRCS "main.cpp" "ESP32_S3_main.cpp" ${GAME_SRCS} ${UI_SRCS} ${HAL_LVGL_SRCS} ${BT_HID_host_SRCS} ${TASKS_SRCS}
+    INCLUDE_DIRS "." ${GAME_INCS} ${UI_INCS} ${HAL_LVGL_INCS} ${BT_HID_host_INCS} ${TASKS_INCS}
+    REQUIRES fatfs lvgl esp_lcd spiffs nvs_flash LovyanGFX esp_hid usb vfs#esp_tinyusb mp3dec# 指定依赖的库
+    PRIV_REQUIRES
 )
 
 # 设置编译选项

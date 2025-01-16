@@ -73,14 +73,12 @@
 #define SD_CS_PIN GPIO_NUM_5
 
 #define SDCARD_SPIHOST SPI2_HOST
+// #define sdcard_mount_point "/sdcard"
+#define sdcard_mount_point "/:"
 
 /******************************************************************************/
 /***************************  LVGL gamed ↓ *************************************/
-#define cube_pre_x 20
-#define cube_pre_y 50
-#define cube_win_x 100
-#define cube_win_y 9
-#define cube_size 12
+
 
 /******************************************************************************/
 /***************************  scream ↓ ************************************/
@@ -111,5 +109,6 @@
 #define cfgbus_shared false;
 
 #define USE_TOUCHPAD 0
+#define USE_MOUSE 1
 
 #endif

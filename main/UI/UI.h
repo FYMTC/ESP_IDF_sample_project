@@ -16,8 +16,12 @@
 #include "game/pvz_project/pvz.h"
 
 #include "sdcard.hpp"
+#include "tasks/wifi_task/wifi_service.h"
 
+#include "hid_host.h"
 void create_menu();
 int get_brightness_from_nvs();
-esp_err_t init_nvs();
+void init_nvs();
 void print_ram_info();
+
+LV_FONT_DECLARE(NotoSansSC_Medium_3500);

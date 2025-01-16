@@ -14,4 +14,5 @@
 #include "freertos/event_groups.h"
 
 #include <ctype.h>
+#include "conf.h"
 void create_file_browser_ui();

@@ -5,6 +5,7 @@ static const char *TAG = "main";
 static bool spi_initialized = false; // 标记 SPI 总线是否已初始化
 sdmmc_card_t *card = NULL;
 QueueHandle_t gpio_evt_queue = NULL;
+TaskHandle_t GPIOtask_handle;
 
 /******************************************************************************/
 /*************************** 扫描挂载 I2C 设备  ↓ ******************************/
@@ -178,7 +179,7 @@ void mount_sd_card()
         .allocation_unit_size = 16 * 1024};
 
     // 挂载 SD 卡
-    esp_err_t ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &card);
+    esp_err_t ret = esp_vfs_fat_sdspi_mount(sdcard_mount_point, &host, &slot_config, &mount_config, &card);
     if (ret == ESP_OK)
     {
         ESP_LOGI(TAG, "SD card mounted successfully");
@@ -200,14 +201,14 @@ void unmount_sd_card()
     deinitialize_spi_bus();
     if (card)
     {
-        esp_vfs_fat_sdcard_unmount("/sdcard", card);
+        esp_vfs_fat_sdcard_unmount(sdcard_mount_point, card);
         card = NULL;
         ESP_LOGI(TAG, "SD card unmounted");
     }
 }
 void init_spiffs() {
     esp_vfs_spiffs_conf_t conf = {
-        .base_path = "/sdcard",
+        .base_path = sdcard_mount_point,
         .partition_label = NULL,
         .max_files = 10,
         .format_if_mount_failed = true
@@ -294,7 +295,7 @@ void sdcardinit(void){
 
     // 创建 GPIO 任务
     ESP_LOGI(TAG, "xTaskCreate gpio_task");
-    xTaskCreatePinnedToCore(gpio_task, "gpio_task", 1024*4, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(gpio_task, "gpio_task", 1024*3, NULL, 1, &GPIOtask_handle, 1);
 
     // 安装 GPIO 中断服务
     gpio_install_isr_service(0);
