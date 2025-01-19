@@ -333,13 +333,14 @@ void list_sd_files(const char *path) {
 void info_task(void *pvParameter) {
     while (1) {
         print_ram_info();
-        vTaskDelay(pdMS_TO_TICKS(5000));  // 每 5s 调用一次
+        vTaskDelay(pdMS_TO_TICKS(10000));  // 每 10s 调用一次
     }
 }
 
-// 初始化 iofo 刷新任务
+// 初始化 info 刷新任务
 void start_info_task() {
-    xTaskCreatePinnedToCore(info_task, "info Task", 4096, NULL, 1, NULL, 1);
+    portCONFIGURE_TIMER_FOR_RUN_TIME_STATS();
+    xTaskCreatePinnedToCore(info_task, "tasks info Task", 1024*3, NULL, 1, NULL, 1);
 }
 
     

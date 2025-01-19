@@ -111,4 +111,7 @@
 #define USE_TOUCHPAD 0
 #define USE_MOUSE 1
 
+#define BRIGHTNESS_KEY "brightness"
+#define WIFI_STATUS_KEY "WIFI_STATUS"
+
 #endif

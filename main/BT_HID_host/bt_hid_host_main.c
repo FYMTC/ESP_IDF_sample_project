@@ -219,5 +219,5 @@ void bt_host_start(void)
     };
     ESP_ERROR_CHECK(esp_hidh_init(&config));
 
-    xTaskCreate(&hid_demo_task, "hid_task", 3 * 1024, NULL, 1, &bt_hid_taskhandle);
+    xTaskCreate(&hid_demo_task, "bt_hid_task", 3 * 1024, NULL, 1, &bt_hid_taskhandle);
 }

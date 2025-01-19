@@ -27,7 +27,7 @@ extern "C" void app_main(void)
     start_info_task();
 
     wifi_service_init(); // 初始化wifi服务
-    //设置省点模式
+    //设置省电模式
     //WIFI_PS_NONE,        /**< No power save */
     //WIFI_PS_MIN_MODEM,   /**< Minimum modem power saving. In this mode, station wakes up to receive beacon every DTIM period */
     //WIFI_PS_MAX_MODEM,   /**< Maximum modem power saving. In this mode, interval to receive beacons is determined by the listen_interval parameter in wifi_sta_config_t */
@@ -48,7 +48,7 @@ extern "C" void app_main(void)
 
     create_menu();
 
-    //bt_host_start();//蓝牙鼠标
+    bt_host_start();//蓝牙鼠标
 
     hid_host_main();
 #else

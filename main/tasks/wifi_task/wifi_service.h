@@ -14,6 +14,7 @@ extern "C" {
 #define MAX_SCAN_RESULTS 20  // 最大扫描结果数量
 #define SCAN_INTERVAL_MS 60000  // 扫描间隔时间（60秒）
 #define NVS_WIFI_NAMESPACE "wifi_config"  // NVS 命名空间
+#define NVS_KEY_WIFI_ENABLED "wifi_enabled"  // Wi-Fi 开关状态的键
 
 // WiFi 扫描结果结构体
 typedef struct {

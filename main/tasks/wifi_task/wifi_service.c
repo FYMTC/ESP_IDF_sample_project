@@ -8,6 +8,10 @@
 #include <string.h>    // 包含 memcpy 的声明
 #include "sdkconfig.h" // 包含SDK配置
 
+// 默认的 SSID 和密码
+const char *default_ssid = "404";
+const char *default_password = "abcd0404";
+
 static const char *TAG = "wifi_service";
 bool complete_wifi_scan_flag = false;
 static wifi_scan_result_t scan_results[MAX_SCAN_RESULTS];                                // 保存扫描结果
@@ -168,8 +172,9 @@ static void wifi_scan_task(void *pvParameters)
 {
     while (1)
     {
-        if (wifi_scan_task_handle == NULL) {
-            break;  // 如果任务句柄无效，退出任务
+        if (wifi_scan_task_handle == NULL)
+        {
+            break; // 如果任务句柄无效，退出任务
         }
         uint16_t ap_count = 0;
         if (is_scan_enabled && is_wifi_enabled)
@@ -192,7 +197,6 @@ static void wifi_scan_task(void *pvParameters)
             }
             ESP_LOGI(TAG, "Scan START");
 
-            
             esp_wifi_scan_get_ap_num(&ap_count);
 
             wifi_ap_record_t ap_records[MAX_SCAN_RESULTS];
@@ -209,10 +213,14 @@ static void wifi_scan_task(void *pvParameters)
 
             ESP_LOGI(TAG, "Scan completed, found %d APs", scan_result_count);
         }
-        if(ap_count==0){
+        if (ap_count == 0)
+        {
             vTaskDelay(pdMS_TO_TICKS(1000));
-        }else{
-        vTaskDelay(pdMS_TO_TICKS(SCAN_INTERVAL_MS));}
+        }
+        else
+        {
+            vTaskDelay(pdMS_TO_TICKS(SCAN_INTERVAL_MS));
+        }
     }
     wifi_scan_task_handle = NULL;
     vTaskDelete(NULL);
@@ -223,8 +231,9 @@ static void wifi_connect_task(void *pvParameters)
 {
     while (1)
     {
-        if (wifi_connect_task_handle == NULL) {
-            break;  // 如果任务句柄无效，退出任务
+        if (wifi_connect_task_handle == NULL)
+        {
+            break; // 如果任务句柄无效，退出任务
         }
         char ssid[33] = {0};
         char password[65] = {0};
@@ -317,13 +326,23 @@ static bool get_ap_details(uint8_t *ssid, wifi_ap_record_t *ap_info)
 // WiFi 服务初始化
 void wifi_service_init(void)
 {
-    // 初始化 NVS
-    // esp_err_t ret = nvs_flash_init();
-    // if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    //     ESP_ERROR_CHECK(nvs_flash_erase());
-    //     ret = nvs_flash_init();
-    // }
-    // ESP_ERROR_CHECK(ret);
+    // 从 NVS 读取 Wi-Fi 开关状态
+    nvs_handle_t nvs_handle;
+    esp_err_t ret = nvs_open(NVS_WIFI_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(ret));
+        return;
+    }
+    int8_t wifi_enabled = 1; // 默认启用 Wi-Fi
+    ret = nvs_get_i8(nvs_handle, NVS_KEY_WIFI_ENABLED, &wifi_enabled);
+    if (ret != ESP_OK && ret != ESP_ERR_NVS_NOT_FOUND)
+    {
+        ESP_LOGE(TAG, "Failed to read Wi-Fi enabled state: %s", esp_err_to_name(ret));
+    }
+    nvs_close(nvs_handle);
+    // 设置 Wi-Fi 开关状态
+    is_wifi_enabled = (wifi_enabled == 1);
 
     // 初始化 Wi-Fi
     ESP_ERROR_CHECK(esp_netif_init());
@@ -336,18 +355,23 @@ void wifi_service_init(void)
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
-
     wifi_config_t wifi_config = {
         .sta = {
             .listen_interval = DEFAULT_LISTEN_INTERVAL,
         },
     };
+    // 从 NVS 中加载 Wi-Fi 配置
+    if (!load_wifi_config_from_nvs(wifi_config.sta.ssid, wifi_config.sta.password)) {
+        // 如果加载失败，使用默认的 SSID 和密码
+        ESP_LOGW(TAG, "Failed to load Wi-Fi config from NVS, using default SSID and password");
+        strncpy((char *)wifi_config.sta.ssid, default_ssid, 32);
+        strncpy((char *)wifi_config.sta.password, default_password, 64);
+    }
+
+
     // 启动 Wi-Fi
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_set_inactive_time(WIFI_IF_STA, DEFAULT_BEACON_TIMEOUT));
-    is_wifi_enabled = true;
 
     // 创建连接请求队列
     wifi_connect_queue = xQueueCreate(2, sizeof(char[33])); // 队列大小为 1
@@ -356,18 +380,12 @@ void wifi_service_init(void)
         ESP_LOGE(TAG, "Failed to create wifi_connect_queue");
         return;
     }
-
-    // 从 NVS 加载 Wi-Fi 配置并尝试连接
-    char saved_ssid[33];
-    char saved_password[65];
-    if (load_wifi_config_from_nvs((uint8_t *)saved_ssid, (uint8_t *)saved_password))
+    // 如果 Wi-Fi 启用，启动 Wi-Fi
+    if (is_wifi_enabled)
     {
-        wifi_service_connect(saved_ssid, saved_password);
+        ESP_ERROR_CHECK(esp_wifi_start());
+        ESP_ERROR_CHECK(esp_wifi_set_inactive_time(WIFI_IF_STA, DEFAULT_BEACON_TIMEOUT));
     }
-
-    // 启动扫描任务和连接任务
-    // xTaskCreate(wifi_scan_task, "wifi_scan_task", 4096, NULL, 1, &wifi_scan_task_handle);
-    // xTaskCreate(wifi_connect_task, "wifi_connect_task", 4096, NULL, 1, NULL);
 }
 
 // 获取最近的扫描结果
@@ -420,16 +438,44 @@ bool wifi_service_connect(const char *ssid, const char *password)
 // 打开或关闭 Wi-Fi
 void wifi_service_set_wifi_enabled(bool enabled)
 {
+    if (is_wifi_enabled == enabled)
+    {
+        return; // 状态未变化，直接返回
+    }
+
+    // 更新 Wi-Fi 开关状态
+    is_wifi_enabled = enabled;
+
+    // 保存 Wi-Fi 开关状态到 NVS
+    nvs_handle_t nvs_handle;
+    esp_err_t ret = nvs_open(NVS_WIFI_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    ret = nvs_set_i8(nvs_handle, NVS_KEY_WIFI_ENABLED, enabled ? 1 : 0);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to save Wi-Fi enabled state: %s", esp_err_to_name(ret));
+    }
+
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+
+    // 启动或停止 Wi-Fi
     if (enabled)
     {
         ESP_ERROR_CHECK(esp_wifi_start());
-        is_wifi_enabled = true;
+        ESP_ERROR_CHECK(esp_wifi_set_inactive_time(WIFI_IF_STA, DEFAULT_BEACON_TIMEOUT));
     }
     else
     {
         ESP_ERROR_CHECK(esp_wifi_stop());
-        is_wifi_enabled = false;
     }
+
+    ESP_LOGI(TAG, "Wi-Fi %s", enabled ? "enabled" : "disabled");
 }
 
 // 打开或关闭 Wi-Fi 扫描
@@ -444,7 +490,7 @@ void wifi_service_set_scan_enabled(bool enabled)
         }
 
         // 创建扫描任务
-        xTaskCreate(wifi_scan_task, "wifi_scan_task", 1024*4, NULL, 1, &wifi_scan_task_handle);
+        xTaskCreate(wifi_scan_task, "wifi_scan_task", 1024 * 4, NULL, 1, &wifi_scan_task_handle);
         if (wifi_scan_task_handle == NULL)
         {
             ESP_LOGE(TAG, "Failed to create wifi_scan_task");
@@ -452,7 +498,7 @@ void wifi_service_set_scan_enabled(bool enabled)
         }
 
         // 创建连接任务
-        xTaskCreate(wifi_connect_task, "wifi_connect_task", 1024*4, NULL, 1, &wifi_connect_task_handle);
+        xTaskCreate(wifi_connect_task, "wifi_connect_task", 1024 * 4, NULL, 1, &wifi_connect_task_handle);
         if (wifi_connect_task_handle == NULL)
         {
             ESP_LOGE(TAG, "Failed to create wifi_connect_task");

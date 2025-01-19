@@ -604,6 +604,6 @@ void hid_host_main(void)
     * 创建HID主机任务以处理事件
     * 注意：任务在此处是必要的，因为无法从回调中与USB设备交互。
     */
-    task_created = xTaskCreate(&hid_host_task, "hid_task", 4 * 1024, NULL, 1, NULL);
+    task_created = xTaskCreate(&hid_host_task, "usb_hid_task", 4 * 1024, NULL, 1, NULL);
     assert(task_created == pdTRUE);
 }

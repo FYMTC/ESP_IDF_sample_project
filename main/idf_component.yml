@@ -1,5 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  espressif/jsmn: "^1.1.0"
   espressif/mpu6050: "^1.2.0"
   usb_host_hid: "1.0.0"
   usb_host_msc: "^1.0.0"
