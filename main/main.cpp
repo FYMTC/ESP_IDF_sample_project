@@ -9,7 +9,7 @@ extern "C" void app_main(void)
 
     // 初始化 SD 卡
     sdcardinit();
-    init_spiffs();
+    //init_spiffs();
     // 初始化 NVS
     init_nvs();
     
@@ -34,7 +34,7 @@ extern "C" void app_main(void)
     wifi_service_set_power_save_mode(WIFI_PS_MIN_MODEM);
     
     //  lvgl demos
-    //  lv_demo_benchmark();
+    //lv_demo_benchmark();
     //  lv_demo_stress();
     //  lv_demo_music();
     //  lv_demo_widgets();
@@ -51,6 +51,10 @@ extern "C" void app_main(void)
     bt_host_start();//蓝牙鼠标
 
     hid_host_main();
+
+    initialize_sntp();
+
+    //htpp_task();
 #else
     // A:/sdcard/1.jpg
     // 2.png

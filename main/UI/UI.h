@@ -19,12 +19,13 @@
 #include "tasks/wifi_task/wifi_service.h"
 
 #include "hid_host.h"
+
 void create_menu();
 int get_brightness_from_nvs();
 void init_nvs();
 void print_ram_info();
-LV_FONT_DECLARE(NotoSansSC_Medium_3500);
-LV_FONT_DECLARE(my_font);
+//LV_FONT_DECLARE(NotoSansSC_Medium_3500);
+//LV_FONT_DECLARE(my_font);
 
 
 void save_brightness_to_nvs(int brightness);
@@ -32,3 +33,6 @@ void create_dropdown_screen(void);
 bool load_switch_state(const char *key) ;
 
 void create_time_page() ;
+
+void htpp_weather(char *out_city, char *out_weather_text, char *out_temperature);
+void initialize_sntp(void);

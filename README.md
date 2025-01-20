@@ -77,6 +77,10 @@ main 是默认分支名称。如果你的 GitHub 仓库使用其他分支名称�
 如果不是第一次推送，可以直接运行：
 git push origin main
 
+git add .
+git commit -m "Merge remote changes"
+git push origin main
+
 在components\lvgl__lvgl\env_support\cmake\esp.cmake
 添加fatfs的依赖
 
@@ -86,3 +90,4 @@ idf_component_register(SRCS ${SOURCES} ${EXAMPLE_SOURCES} ${DEMO_SOURCES}
       REQUIRES esp_timer fatfs)
 
 FAT Filesystem support 开启长文件名支持
+

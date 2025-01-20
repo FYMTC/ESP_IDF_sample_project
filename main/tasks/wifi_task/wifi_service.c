@@ -344,7 +344,7 @@ void wifi_service_init(void)
     // 设置 Wi-Fi 开关状态
     is_wifi_enabled = (wifi_enabled == 1);
 
-    // 初始化 Wi-Fi
+    // 初始化 Wi-Fi,注意只能调用一次
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();

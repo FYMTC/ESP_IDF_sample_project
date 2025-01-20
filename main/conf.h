@@ -58,15 +58,24 @@
 
 #define I2C_MASTER_SCL_IO_0 GPIO_NUM_1  // GPIO for SCL (Bus 0)
 #define I2C_MASTER_SDA_IO_0 GPIO_NUM_2  // GPIO for SDA (Bus 0)
-#define I2C_MASTER_SCL_IO_1 GPIO_NUM_12 // GPIO for SCL (Bus 1)
-#define I2C_MASTER_SDA_IO_1 GPIO_NUM_11 // GPIO for SDA (Bus 1)
+#define I2C_MASTER_SCL_IO_1 GPIO_NUM_42 // GPIO for SCL (Bus 1)
+#define I2C_MASTER_SDA_IO_1 GPIO_NUM_41 // GPIO for SDA (Bus 1)
 #define I2C_MASTER_NUM_0 I2C_NUM_0
 #define I2C_MASTER_NUM_1 I2C_NUM_1
 #define I2C_MASTER_FREQ_HZ 100000
 
 /***********************************************************/
 /**********************    SD卡 ↓   *********************/
-#define SD_DET_PIN GPIO_NUM_17
+#define SD_USE_MMC_HOST 1
+#define SDMMC_CLK_GPIO GPIO_NUM_15
+#define SDMMC_CMD_GPIO GPIO_NUM_6
+#define SDMMC_DATA0_GPIO GPIO_NUM_16
+#define SDMMC_DATA1_GPIO GPIO_NUM_17
+#define SDMMC_DATA2_GPIO GPIO_NUM_4
+#define SDMMC_DATA3_GPIO GPIO_NUM_5
+
+#define SD_DET_PIN GPIO_NUM_18
+
 #define SD_MISO_PIN GPIO_NUM_16
 #define SD_MOSI_PIN GPIO_NUM_6
 #define SD_CLK_PIN GPIO_NUM_15
@@ -92,15 +101,15 @@
 #define use_buf_dsc_2 0 // fps34
 #define use_buf_dsc_3 1 // fps45
 #define cfgspi_mode 3
-#define disp_sclk 40
-#define disp_mosi 41
-#define disp_dc 21
-#define disp_rst 11
-#define disp_cs 4
+#define disp_sclk 14
+#define disp_mosi 8
+#define disp_dc 3
+#define disp_rst 7 
+#define disp_cs 9  //不可少
 #define disp_offset_y 0
 #define DISP_HOR_RES 240
 #define DISP_VER_RES 320
-#define DISP_bl_pin 39
+#define DISP_bl_pin 46
 
 #define cfgreadable false;
 #define cfginvert true;
@@ -113,5 +122,7 @@
 
 #define BRIGHTNESS_KEY "brightness"
 #define WIFI_STATUS_KEY "WIFI_STATUS"
+#define MY_FONT_MOUSE  "\xEF\x89\x85"
+#define MY_FONT_TIME  "\xEF\x8B\xB2"
 
 #endif

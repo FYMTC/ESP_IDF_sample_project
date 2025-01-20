@@ -88,7 +88,7 @@ void lv_port_indev_init(void)
     /*Set cursor. For simplicity set a HOME symbol now.*/
     lv_obj_t * mouse_cursor = lv_label_create(lv_scr_act());
     lv_obj_set_style_text_font(mouse_cursor, &NotoSansSC_Medium_3500, 0);
-    lv_img_set_src(mouse_cursor, "\xEF\x89\x85");//鼠标字体符号
+    lv_img_set_src(mouse_cursor, MY_FONT_MOUSE);//鼠标字体符号
     lv_indev_set_cursor(indev_mouse, mouse_cursor);
     #endif
 

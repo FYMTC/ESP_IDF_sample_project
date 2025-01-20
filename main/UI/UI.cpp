@@ -32,6 +32,7 @@ lv_obj_t *WIFI_screen;
 // 回调函数声明
 void menu_action_WIFI(lv_event_t *e);
 void menu_action_TIME(lv_event_t *e);
+void menu_action_HTTP(lv_event_t *e);
 void menu_action_game1(lv_event_t *e);
 void menu_action_game2(lv_event_t *e);
 void menu_action_game3(lv_event_t *e);
@@ -76,8 +77,13 @@ void create_menu()
     btn = lv_list_add_btn(list, LV_SYMBOL_WIFI, "WIFI");
     lv_obj_add_event_cb(btn, menu_action_WIFI, LV_EVENT_CLICKED, NULL);
 
-    btn = lv_list_add_btn(list, LV_SYMBOL_WIFI, "TIME");
+    btn = lv_list_add_btn(list, MY_FONT_TIME, "TIME");
     lv_obj_add_event_cb(btn, menu_action_TIME, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_text_font(btn, &NotoSansSC_Medium_3500, 0);
+
+    btn = lv_list_add_btn(list, MY_FONT_TIME, "HTTP");
+    lv_obj_add_event_cb(btn, menu_action_HTTP, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_text_font(btn, &NotoSansSC_Medium_3500, 0);
 
     btn = lv_list_add_btn(list, LV_SYMBOL_FILE, "cube game");
     lv_obj_add_event_cb(btn, menu_action_game1, LV_EVENT_CLICKED, NULL);
@@ -121,6 +127,11 @@ void menu_action_TIME(lv_event_t *e)
 {
     switch_to_TIME_screen();
     ESP_LOGI(TAG, "Home button clicked!");
+}
+void menu_action_HTTP(lv_event_t *e)
+{
+    //htpp_weather();
+    ESP_LOGI(TAG, "HTTP button clicked!");
 }
 void menu_action_game1(lv_event_t *e)
 {
