@@ -14,7 +14,7 @@ static void show_image(const char *path);
 static char current_path[256] = sdcard_mount_point; // 记录当前路径
 static lv_obj_t *file_list;                         // 文件列表对象
 static lv_obj_t *back_btn;                          // 返回按钮
-
+extern QueueHandle_t audio_file_queue;
 // 列出目录中的文件和文件夹
 void list_files(const char *dir_path)
 {
@@ -222,6 +222,12 @@ void file_item_click_handler(lv_event_t *e)
             return;
         }
         show_image(full_path); // 在 LVGL 中显示图片
+    }
+     // 处理图片文件
+    else if (strcmp(ext, "mp3") == 0 || strcmp(ext, "wav") == 0)
+    {
+        xQueueSend(audio_file_queue, full_path, portMAX_DELAY);
+        ESP_LOGI(TAG, "Send audio file path: %s", full_path);
     }
     // 其他文件不处理
     else

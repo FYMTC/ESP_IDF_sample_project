@@ -91,3 +91,12 @@ idf_component_register(SRCS ${SOURCES} ${EXAMPLE_SOURCES} ${DEMO_SOURCES}
 
 FAT Filesystem support 开启长文件名支持
 
+打开了 UAC FIFO
+
+打开了Trace memory
+
+Use TRAX tracing feature
+KCONFIG Name: ESP32S3_TRAX
+
+Reserve memory for tracing both pro as well as app cpu execution
+KCONFIG Name: ESP32S3_TRAX_TWOBANKS

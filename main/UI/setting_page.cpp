@@ -4,6 +4,7 @@
 void update_system_info(_lv_timer_t *timer);
 extern LGFX_tft tft;
 extern lv_obj_t *main_screen;
+//extern uac_host_device_handle_t s_spk_dev_handle;
 lv_obj_t *dropdown_screen;
 
 static const char *TAG = "SETTING_PAGE";
@@ -24,8 +25,10 @@ lv_obj_t *chart;
 static lv_chart_series_t *high_water_mark_series = NULL;
 static lv_chart_series_t *cpu_usage_series = NULL;
 void brightness_slider_event_cb(lv_event_t *e);
+void volume_slider_event_cb(lv_event_t *e);
 void dropdown_screen_backbtn_cb(lv_event_t *e);
 lv_obj_t *brightness_slider;
+lv_obj_t *volume_slider;
 static void draw_event_cb(lv_event_t *e);
 static void draw_part_event_cb(lv_event_t *e);
 #define configMAX_TASK_NAME_LEN 32
@@ -37,21 +40,7 @@ typedef struct
     uint32_t cpuUsage;
 } TaskInfo;
 
-// 初始化 NVS
-void init_nvs()
-{
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "NVS initialization failed");
-        return;
-    }
-}
+
 
 // 读取 NVS 中的亮度值
 int get_brightness_from_nvs()
@@ -102,7 +91,54 @@ void save_brightness_to_nvs(int brightness)
     nvs_commit(my_handle);
     nvs_close(my_handle);
 }
+int get_volume_from_nvs()
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
+        return 50; // 默认亮度值 50
+    }
 
+    int32_t volume = 50; // 默认亮度
+    err = nvs_get_i32(my_handle, BRIGHTNESS_KEY, &volume);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
+        volume = 50; // 默认亮度
+    }
+
+    nvs_close(my_handle);
+    // 调用硬件接口调整屏幕亮度
+    
+    return volume;
+}
+
+// 保存亮度值到 NVS
+void save_volume_to_nvs(int volume)
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for saving!");
+        return;
+    }
+
+    err = nvs_set_i32(my_handle, BRIGHTNESS_KEY, volume);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to write brightness to NVS.");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Brightness saved to NVS: %d", volume);
+    }
+
+    nvs_commit(my_handle);
+    nvs_close(my_handle);
+}
 void save_switch_state(const char *key, bool state)
 {
     nvs_handle_t nvs_handle;
@@ -269,6 +305,19 @@ void create_dropdown_screen(void)
     // 根据保存的亮度设置屏幕亮度
     lv_slider_set_value(brightness_slider, saved_brightness, LV_ANIM_OFF);
 
+    // 添加滑块调节音量
+    slider_label = lv_label_create(status);
+    lv_label_set_text(slider_label, "\nvolume:");
+    volume_slider = lv_slider_create(status);
+    lv_obj_set_width(volume_slider, 150);
+    lv_slider_set_range(volume_slider, 10, 255);
+    lv_slider_set_value(volume_slider, 50, LV_ANIM_OFF);
+    lv_obj_add_event_cb(volume_slider, volume_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    // 读取保存的亮度值
+    int saved_volume = get_volume_from_nvs();
+    // 根据保存的亮度设置屏幕亮度
+    lv_slider_set_value(volume_slider, saved_volume, LV_ANIM_OFF);
+
     // 创建任务信息的图表对象
     chart = lv_chart_create(status);
     lv_obj_set_size(chart, LV_PCT(80), LV_PCT(60));
@@ -309,6 +358,7 @@ void create_dropdown_screen(void)
     lv_table_set_col_width(table, 1, (DISP_HOR_RES - 20) / 3);
     lv_table_set_col_width(table, 2, (DISP_HOR_RES - 20) / 3);
     lv_obj_add_event_cb(table, draw_part_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+    //lv_obj_set_style_text_font(table,&lv_font_unscii_8,0);
 
     // 启动定时器周期性更新系统信息
     timer_update_system_info = lv_timer_create(update_system_info, 1000, NULL); // 每秒更新一次
@@ -379,6 +429,15 @@ void brightness_slider_event_cb(lv_event_t *e)
     ESP_LOGI(TAG, "Adjusting brightness to %d%%", brightness * 100 / 255);
     // 调用硬件接口调整屏幕亮度
     tft.setBrightness(brightness);
+}
+void volume_slider_event_cb(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    uint8_t volume = (uint8_t)lv_slider_get_value(slider);
+
+    ESP_LOGI(TAG, "Adjusting brightness to %d%%", volume * 100 / 255);
+    // 调用硬件接口调整屏幕亮度
+    //uac_host_device_set_volume(s_spk_dev_handle, volume);
 }
 // 比较函数，用于按 highWaterMark 从大到小排序
 int compare_task_info(const void *a, const void *b)

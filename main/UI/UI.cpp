@@ -26,7 +26,13 @@ TaskHandle_t draw_qrcode_task_handle;
 extern lv_timer_t *timer_update_system_info;
 extern lv_obj_t *brightness_slider;
 extern lv_obj_t *dropdown_screen;
-
+// 任务信息结构体，用于排序
+typedef struct
+{
+    char taskName[configMAX_TASK_NAME_LEN];
+    UBaseType_t highWaterMark;
+    uint32_t cpuUsage;
+} TaskInfo;
 lv_obj_t *WIFI_screen;
 
 // 回调函数声明
@@ -49,7 +55,10 @@ void switch_to_dropdown_screen(void);
 void switch_to_WIFI_screen(void);
 void switch_to_TIME_screen(void);
 // 事件回调声明
-
+void init_nvs(){
+    nvs_flash_init();
+    
+}
 void create_menu()
 {
     // 创建主界面
@@ -130,7 +139,7 @@ void menu_action_TIME(lv_event_t *e)
 }
 void menu_action_HTTP(lv_event_t *e)
 {
-    //htpp_weather();
+    // htpp_weather();
     ESP_LOGI(TAG, "HTTP button clicked!");
 }
 void menu_action_game1(lv_event_t *e)
@@ -467,11 +476,13 @@ void switch_to_dropdown_screen(void)
     lv_scr_load_anim(dropdown_screen, LV_SCR_LOAD_ANIM_MOVE_BOTTOM, 500, 0, false);
 }
 
-// // 定义运行时统计时钟
-// extern uint32_t esp_get_ccount(void);
-// #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() (esp_get_ccount())
-// #define portGET_RUN_TIME_COUNTER_VALUE() (esp_get_ccount())
 
+int compare_tasks_info(const void *a, const void *b)
+{
+    TaskInfo *taskA = (TaskInfo *)a;
+    TaskInfo *taskB = (TaskInfo *)b;
+    return taskB->highWaterMark - taskA->highWaterMark;
+}
 // 输出内存状态信息
 
 void print_ram_info()
@@ -520,6 +531,8 @@ void print_ram_info()
 
         if (taskCount > 0)
         {
+            // 分配内存来存储排序后的任务信息
+            TaskInfo *taskInfoArray = (TaskInfo *)pvPortMalloc(taskCount * sizeof(TaskInfo));
             // 打印表头
             printf("Task Name\t\tHigh Water Mark\tCPU Usage\n");
             printf("--------------------------------------------\n");
@@ -528,20 +541,24 @@ void print_ram_info()
             for (index = 0; index < taskCount; index++)
             {
                 // 获取任务的栈高水位线
-                UBaseType_t highWaterMark = uxTaskGetStackHighWaterMark(taskStatusArray[index].xHandle);
+                taskInfoArray[index].highWaterMark = uxTaskGetStackHighWaterMark(taskStatusArray[index].xHandle);
 
                 // 计算 CPU 占用率
-                uint32_t cpuUsage = 0;
+                taskInfoArray[index].cpuUsage = 0;
                 if (totalRunTime > 0)
                 {
-                    cpuUsage = (taskStatusArray[index].ulRunTimeCounter * 100) / totalRunTime;
+                    taskInfoArray[index].cpuUsage = (taskStatusArray[index].ulRunTimeCounter * 100) / totalRunTime;
                 }
-
+                strncpy(taskInfoArray[index].taskName, taskStatusArray[index].pcTaskName, configMAX_TASK_NAME_LEN);
+            }
+            qsort(taskInfoArray, taskCount, sizeof(TaskInfo), compare_tasks_info);
+            for (index = 0; index < taskCount; index++)
+            {
                 // 打印任务信息
                 printf("%-16s\t%u\t\t%lu%%\n",
-                       taskStatusArray[index].pcTaskName,
-                       highWaterMark,
-                       cpuUsage);
+                       taskInfoArray[index].taskName,
+                       taskInfoArray[index].highWaterMark,
+                       taskInfoArray[index].cpuUsage);
             }
         }
         else

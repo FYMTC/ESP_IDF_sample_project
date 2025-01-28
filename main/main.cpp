@@ -14,10 +14,10 @@ extern "C" void app_main(void)
     init_nvs();
     
     // 初始化 I2C
-    i2c_master_init(I2C_MASTER_NUM_0, I2C_MASTER_SDA_IO_0, I2C_MASTER_SCL_IO_0);
-    i2c_master_init(I2C_MASTER_NUM_1, I2C_MASTER_SDA_IO_1, I2C_MASTER_SCL_IO_1);
-    i2c_scan(I2C_MASTER_NUM_0);
-    i2c_scan(I2C_MASTER_NUM_1);
+    // i2c_master_init(I2C_MASTER_NUM_0, I2C_MASTER_SDA_IO_0, I2C_MASTER_SCL_IO_0);
+    // i2c_master_init(I2C_MASTER_NUM_1, I2C_MASTER_SDA_IO_1, I2C_MASTER_SCL_IO_1);
+    // i2c_scan(I2C_MASTER_NUM_0);
+    // i2c_scan(I2C_MASTER_NUM_1);
 
     // 初始化 lvgl，屏幕，触摸
     lv_init();
@@ -50,11 +50,12 @@ extern "C" void app_main(void)
 
     bt_host_start();//蓝牙鼠标
 
-    hid_host_main();
+    //hid_host_main();
 
     initialize_sntp();
 
-    //htpp_task();
+    uac_init();
+    
 #else
     // A:/sdcard/1.jpg
     // 2.png

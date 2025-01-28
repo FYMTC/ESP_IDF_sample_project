@@ -17,6 +17,10 @@
 
 // 从 IP地址查询接口 获取城市信息的 URL
 #define IP_API_URL "http://qifu-api.baidubce.com/ip/local/geo/v1/district"
+//https://myip.ipip.net/json
+//https://ipinfo.io/json
+
+
 
 // 从 seniverse.com 获取天气信息的 URL 模板
 #define WEATHER_API_URL "http://api.seniverse.com/v3/weather/now.json?key=SCmb3d-dfjAaPvroO&location=%s&language=zh-Hans&unit=c"

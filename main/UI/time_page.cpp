@@ -247,7 +247,7 @@ void time_page_fash_task(void *pvParameters)
         
         unsigned long currentMillis = esp_timer_get_time() / 1000;//microseconds in esp_timer_get_time
 
-        if (time_sync % (60) == 0)
+        if (time_sync % (60*10) == 0)
         {
             // 检查 WiFi 连接状态
             if (is_wifi_connected())

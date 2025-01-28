@@ -67,7 +67,7 @@
 /***********************************************************/
 /**********************    SD卡 ↓   *********************/
 #define SD_USE_MMC_HOST 1
-#define SDMMC_CLK_GPIO GPIO_NUM_15
+#define SDMMC_CLK_GPIO GPIO_NUM_2
 #define SDMMC_CMD_GPIO GPIO_NUM_6
 #define SDMMC_DATA0_GPIO GPIO_NUM_16
 #define SDMMC_DATA1_GPIO GPIO_NUM_17
@@ -78,7 +78,7 @@
 
 #define SD_MISO_PIN GPIO_NUM_16
 #define SD_MOSI_PIN GPIO_NUM_6
-#define SD_CLK_PIN GPIO_NUM_15
+#define SD_CLK_PIN GPIO_NUM_2
 #define SD_CS_PIN GPIO_NUM_5
 
 #define SDCARD_SPIHOST SPI2_HOST
@@ -101,7 +101,7 @@
 #define use_buf_dsc_2 0 // fps34
 #define use_buf_dsc_3 1 // fps45
 #define cfgspi_mode 3
-#define disp_sclk 14
+#define disp_sclk 1
 #define disp_mosi 8
 #define disp_dc 3
 #define disp_rst 7 
