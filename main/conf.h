@@ -64,6 +64,8 @@
 #define I2C_MASTER_NUM_1 I2C_NUM_1
 #define I2C_MASTER_FREQ_HZ 100000
 
+#define MAX_TASK_NAME_LEN 32
+
 /***********************************************************/
 /**********************    SD卡 ↓   *********************/
 #define SD_USE_MMC_HOST 1
@@ -124,5 +126,14 @@
 #define WIFI_STATUS_KEY "WIFI_STATUS"
 #define MY_FONT_MOUSE  "\xEF\x89\x85"
 #define MY_FONT_TIME  "\xEF\x8B\xB2"
+
+#define TOUCH_PAD_NUM GPIO_NUM_14
+
+#define LED_STRIP_GPIO_PIN  48
+#define LED_STRIP_LED_COUNT 1
+
+//#define USE_I2S_AUDIO 0
+#define USE_UAC_AUDIO 1
+
 
 #endif

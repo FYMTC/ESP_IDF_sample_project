@@ -22,6 +22,10 @@ typedef struct {
     //int8_t rssi;    // 信号强度
     //wifi_auth_mode_t auth_mode;  // 认证模式
 } wifi_scan_result_t;
+typedef struct {
+    char ssid[33];      // SSID最大32字符 + '\0'
+    char password[65];  // 密码最大64字符 + '\0'
+} wifi_connect_request_t;
 
 // WiFi 配置结构体（重命名为 wifi_service_config_t）
 // typedef struct {

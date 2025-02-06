@@ -1,14 +1,24 @@
 #include <stdio.h>
+#include <dirent.h>
 #include "esp32_s3_main.h"
+
+#define class cls
+#include "usb/uac_host.h"
+#undef class
 
 static const char *TAG = "main";
 static bool spi_initialized = false; // 标记 SPI 总线是否已初始化
 sdmmc_card_t *card = NULL;
 QueueHandle_t gpio_evt_queue = NULL;
 TaskHandle_t GPIOtask_handle;
-
-/******************************************************************************/
-/*************************** 扫描挂载 I2C 设备  ↓ ******************************/
+extern uac_host_device_handle_t s_spk_dev_handle;
+// 任务信息结构体，用于排序
+typedef struct
+{
+    char taskName[MAX_TASK_NAME_LEN];
+    UBaseType_t highWaterMark;
+    uint32_t cpuUsage;
+} TaskInfo;
 
 static mpu6050_handle_t mpu6050 = NULL;
 
@@ -111,12 +121,6 @@ void i2c_scan(i2c_port_t i2c_num)
 
     ESP_LOGI(TAG, "Scan complete on bus %d.", i2c_num);
 }
-
-/***************************  I2C ↑  *******************************************/
-/*******************************************************************************/
-
-/***********************************************************/
-/**********************    SD卡 ↓   *********************/
 void initialize_spi_bus()
 {
     if (spi_initialized)
@@ -332,7 +336,10 @@ void gpio_task(void *arg)
         }
     }
 }
-
+void init_nvs(){
+    nvs_flash_init();
+    
+}
 void sdcardinit(void)
 {
     // 配置 SD_DET_PIN 检测引脚
@@ -390,7 +397,117 @@ void list_sd_files(const char *path)
 /**********************    SD卡 ↑  *********************/
 /**********************************************************/
 
-/**/
+// 输出内存状态信息
+int compare_tasks_info(const void *a, const void *b)
+{
+    TaskInfo *taskA = (TaskInfo *)a;
+    TaskInfo *taskB = (TaskInfo *)b;
+    return taskB->highWaterMark - taskA->highWaterMark;
+}
+void print_ram_info()
+{
+    // 获取内部 RAM 的内存信息
+    size_t free_size = heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024;
+    size_t total_size = heap_caps_get_total_size(MALLOC_CAP_INTERNAL) / 1024;
+    size_t used_size = total_size - free_size;
+
+    ESP_LOGI(TAG, "Internal RAM:");
+    ESP_LOGI(TAG, "  Total size: %d kbytes", total_size);
+    ESP_LOGI(TAG, "  Used size: %d kbytes", used_size);
+    ESP_LOGI(TAG, "  Free size: %d kbytes", free_size);
+
+    // 获取 PSRAM 的内存信息（如果可用）
+    if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0)
+    {
+        free_size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024;
+        total_size = heap_caps_get_total_size(MALLOC_CAP_SPIRAM) / 1024;
+        used_size = total_size - free_size;
+
+        ESP_LOGI(TAG, "PSRAM:");
+        ESP_LOGI(TAG, "  Total size: %d kbytes", total_size);
+        ESP_LOGI(TAG, "  Used size: %d kbytes", used_size);
+        ESP_LOGI(TAG, "  Free size: %d kbytes", free_size);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "PSRAM not available");
+    }
+
+    TaskStatus_t *taskStatusArray = NULL;
+    UBaseType_t taskCount, index;
+    uint32_t totalRunTime;
+
+    // 获取当前任务数量并保存
+    UBaseType_t originalTaskCount = uxTaskGetNumberOfTasks();
+
+    // 分配内存来存储任务状态
+    taskStatusArray = (TaskStatus_t *)pvPortMalloc(originalTaskCount * sizeof(TaskStatus_t));
+
+    if (taskStatusArray != NULL)
+    {
+        // 获取任务状态信息
+        taskCount = uxTaskGetSystemState(taskStatusArray, originalTaskCount, &totalRunTime);
+
+        if (taskCount > 0)
+        {
+            // 分配内存来存储排序后的任务信息
+            TaskInfo *taskInfoArray = (TaskInfo *)pvPortMalloc(originalTaskCount * sizeof(TaskInfo));
+            if (taskInfoArray == NULL) {
+                ESP_LOGE(TAG, "Failed to allocate task info array");
+                vPortFree(taskStatusArray);
+                return;
+            }
+
+            // 打印表头
+            printf("Task Name\t\tHigh Water Mark\tCPU Usage\n");
+            printf("--------------------------------------------\n");
+
+            // 打印每个任务的高水位线和 CPU 占用率
+            for (index = 0; index < originalTaskCount; index++) // 使用 originalTaskCount
+            {
+                // 获取任务的栈高水位线
+                taskInfoArray[index].highWaterMark = uxTaskGetStackHighWaterMark(taskStatusArray[index].xHandle);
+
+                // 计算 CPU 占用率
+                taskInfoArray[index].cpuUsage = 0;
+                if (totalRunTime > 0)
+                {
+                    taskInfoArray[index].cpuUsage = (taskStatusArray[index].ulRunTimeCounter * 100) / totalRunTime;
+                }
+
+                // 安全复制任务名
+                strncpy(taskInfoArray[index].taskName, taskStatusArray[index].pcTaskName, MAX_TASK_NAME_LEN - 1);
+                taskInfoArray[index].taskName[MAX_TASK_NAME_LEN - 1] = '\0';
+            }
+
+            // 对任务信息进行排序
+            qsort(taskInfoArray, originalTaskCount, sizeof(TaskInfo), compare_tasks_info);
+
+            // 打印排序后的任务信息
+            for (index = 0; index < originalTaskCount; index++)
+            {
+                printf("%-16s\t%u\t\t%lu%%\n",
+                       taskInfoArray[index].taskName,
+                       taskInfoArray[index].highWaterMark,
+                       taskInfoArray[index].cpuUsage);
+            }
+
+            // 释放任务信息数组内存
+            vPortFree(taskInfoArray);
+        }
+        else
+        {
+            printf("Failed to get task state information\n");
+        }
+
+        // 释放任务状态数组内存
+        vPortFree(taskStatusArray);
+    }
+    else
+    {
+        printf("Failed to allocate memory for task status array\n");
+    }
+}
 // info 刷新任务
 void info_task(void *pvParameter)
 {
@@ -406,4 +523,146 @@ void start_info_task()
 {
     portCONFIGURE_TIMER_FOR_RUN_TIME_STATS();
     xTaskCreatePinnedToCore(info_task, "tasks info Task", 1024 * 3, NULL, 1, NULL, 1);
+}
+
+uint8_t get_volume_from_nvs()
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
+        return 50; 
+    }
+
+    uint8_t volume = 50; 
+    err = nvs_get_u8(my_handle, BRIGHTNESS_KEY, &volume);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
+        volume = 50; 
+    }
+
+    nvs_close(my_handle);
+    
+    return volume;
+}
+// 读取 NVS 中的亮度值
+int get_brightness_from_nvs()
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
+        return 50; // 默认亮度值 50
+    }
+
+    int32_t brightness = 50; // 默认亮度
+    err = nvs_get_i32(my_handle, BRIGHTNESS_KEY, &brightness);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
+        brightness = 50; // 默认亮度
+    }
+
+    nvs_close(my_handle);
+    return brightness;
+}
+// 保存亮度值到 NVS
+void save_brightness_to_nvs(int brightness)
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for saving!");
+        return;
+    }
+
+    err = nvs_set_i32(my_handle, BRIGHTNESS_KEY, brightness);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to write brightness to NVS.");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Brightness saved to NVS: %d", brightness);
+    }
+
+    nvs_commit(my_handle);
+    nvs_close(my_handle);
+}
+
+void save_volume_to_nvs(uint8_t volume)
+{
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error opening NVS handle for saving!");
+        return;
+    }
+
+    err = nvs_set_u8(my_handle, BRIGHTNESS_KEY, volume);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to write volume to NVS.");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "volume saved to NVS: %d", volume);
+    }
+
+    nvs_commit(my_handle);
+    nvs_close(my_handle);
+}
+
+void save_switch_state(const char *key, bool state)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        return;
+    }
+
+    err = nvs_set_i8(nvs_handle, key, state ? 1 : 0);
+    if (err != ESP_OK)
+    {
+        printf("Error (%s) saving state to NVS!\n", esp_err_to_name(err));
+    }
+
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+}
+
+// 从nvs中读取开关状态
+bool load_switch_state(const char *key)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+        return true; // 默认返回开状态
+    }
+
+    int8_t state = 0;
+    err = nvs_get_i8(nvs_handle, key, &state);
+    if (err != ESP_OK)
+    {
+        printf("Error (%s) reading state from NVS! Setting default state to ON.\n", esp_err_to_name(err));
+        state = 1;                          // 默认设置为开状态
+        nvs_set_i8(nvs_handle, key, state); // 将默认状态保存到 NVS
+        nvs_commit(nvs_handle);
+    }
+
+    nvs_close(nvs_handle);
+    return state == 1;
+}
+
+void set_uac_volume(uint8_t volume){
+    uac_host_device_set_volume(s_spk_dev_handle, volume);
 }

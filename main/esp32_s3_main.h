@@ -19,7 +19,7 @@
 #include "esp_lcd_panel_ops.h"
 
 #include "driver/i2s_std.h"
-
+#include "ff.h"
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
@@ -42,28 +42,24 @@
 #include "hal_lvgl.hpp"
 #include "conf.h"
 
-#include "ff.h"
-
 #include "bt.hpp"
-
-#include "tasks/audio_task/audio_task.h"
-// /******************************************************************************/
-// /***************************  I2C ↓ *******************************************/
+#include "tasks/audio_task/audio_countrol_task.h"
+#include "tasks/led_task/led_task.h"
 
 void i2c_master_init(i2c_port_t i2c_num, gpio_num_t sda_io, gpio_num_t scl_io);// 初始化I2C接口
 void i2c_scan(i2c_port_t i2c_num); 
 
-/***************************  I2C ↑  *******************************************/
-/*******************************************************************************/
-
-
-/***********************************************************/
-/**********************    SD卡 ↓   *********************/
+void init_nvs();
 void sdcardinit(void);
 void init_spiffs();
-
 void list_sd_files(const char *path);
-/**********************    SD卡 ↑  *********************/
-/**********************************************************/
-
 void start_info_task();
+int get_brightness_from_nvs();
+void save_brightness_to_nvs(int brightness);
+uint8_t get_volume_from_nvs();
+void save_volume_to_nvs(uint8_t volume);
+void set_uac_volume(uint8_t volume);
+void save_switch_state(const char *key, bool state); 
+bool load_switch_state(const char *key);
+
+

@@ -360,7 +360,7 @@ void bt_host_start(void)
 #endif /* CONFIG_BT_BLE_ENABLED */
     esp_hidh_config_t config = {
         .callback = hidh_callback,
-        .event_stack_size = 4096,
+        .event_stack_size = 1024*3,
         .callback_arg = NULL,
     };
     ESP_ERROR_CHECK(esp_hidh_init(&config));

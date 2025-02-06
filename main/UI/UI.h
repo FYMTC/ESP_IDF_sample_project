@@ -15,18 +15,18 @@
 #include "game/airplane_shooting_project/flygame.h"
 #include "game/pvz_project/pvz.h"
 
-#include "sdcard.hpp"
+#include "file_browser/sdcard.hpp"
 #include "tasks/wifi_task/wifi_service.h"
 
 #include "hid_host.h"
-#include "usb_uac.h"
+#include "tasks/audio_task/usb_uac.h"
+#include "tasks/audio_task/audio_player.h"
 
+#include "esp32_s3_main.h"
 
 void create_menu();
 int get_brightness_from_nvs();
 void init_nvs();
-
-void print_ram_info();
 
 void save_brightness_to_nvs(int brightness);
 void create_dropdown_screen(void);

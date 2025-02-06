@@ -4,7 +4,6 @@
 void update_system_info(_lv_timer_t *timer);
 extern LGFX_tft tft;
 extern lv_obj_t *main_screen;
-//extern uac_host_device_handle_t s_spk_dev_handle;
 lv_obj_t *dropdown_screen;
 
 static const char *TAG = "SETTING_PAGE";
@@ -17,7 +16,7 @@ static lv_obj_t *bt_status_label;
 
 lv_timer_t *timer_update_system_info;
 lv_obj_t *tasks_label;
-lv_obj_t *table;
+lv_obj_t *tasks_table;
 lv_obj_t *wifi_sw;
 lv_obj_t *ble_sw;
 // 定义图表数据
@@ -31,158 +30,19 @@ lv_obj_t *brightness_slider;
 lv_obj_t *volume_slider;
 static void draw_event_cb(lv_event_t *e);
 static void draw_part_event_cb(lv_event_t *e);
-#define configMAX_TASK_NAME_LEN 32
+
 // 任务信息结构体，用于排序
 typedef struct
 {
-    char taskName[configMAX_TASK_NAME_LEN];
+    char taskName[MAX_TASK_NAME_LEN];
     UBaseType_t highWaterMark;
     uint32_t cpuUsage;
 } TaskInfo;
 
 
 
-// 读取 NVS 中的亮度值
-int get_brightness_from_nvs()
-{
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
-        return 50; // 默认亮度值 50
-    }
 
-    int32_t brightness = 50; // 默认亮度
-    err = nvs_get_i32(my_handle, BRIGHTNESS_KEY, &brightness);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
-        brightness = 50; // 默认亮度
-    }
 
-    nvs_close(my_handle);
-    // 调用硬件接口调整屏幕亮度
-    tft.setBrightness(brightness);
-    return brightness;
-}
-
-// 保存亮度值到 NVS
-void save_brightness_to_nvs(int brightness)
-{
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error opening NVS handle for saving!");
-        return;
-    }
-
-    err = nvs_set_i32(my_handle, BRIGHTNESS_KEY, brightness);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to write brightness to NVS.");
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Brightness saved to NVS: %d", brightness);
-    }
-
-    nvs_commit(my_handle);
-    nvs_close(my_handle);
-}
-int get_volume_from_nvs()
-{
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
-        return 50; // 默认亮度值 50
-    }
-
-    int32_t volume = 50; // 默认亮度
-    err = nvs_get_i32(my_handle, BRIGHTNESS_KEY, &volume);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
-        volume = 50; // 默认亮度
-    }
-
-    nvs_close(my_handle);
-    // 调用硬件接口调整屏幕亮度
-    
-    return volume;
-}
-
-// 保存亮度值到 NVS
-void save_volume_to_nvs(int volume)
-{
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error opening NVS handle for saving!");
-        return;
-    }
-
-    err = nvs_set_i32(my_handle, BRIGHTNESS_KEY, volume);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to write brightness to NVS.");
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Brightness saved to NVS: %d", volume);
-    }
-
-    nvs_commit(my_handle);
-    nvs_close(my_handle);
-}
-void save_switch_state(const char *key, bool state)
-{
-    nvs_handle_t nvs_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
-    if (err != ESP_OK)
-    {
-        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-        return;
-    }
-
-    err = nvs_set_i8(nvs_handle, key, state ? 1 : 0);
-    if (err != ESP_OK)
-    {
-        printf("Error (%s) saving state to NVS!\n", esp_err_to_name(err));
-    }
-
-    nvs_commit(nvs_handle);
-    nvs_close(nvs_handle);
-}
-
-// 从nvs中读取开关状态
-bool load_switch_state(const char *key)
-{
-    nvs_handle_t nvs_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
-    if (err != ESP_OK)
-    {
-        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
-        return true; // 默认返回开状态
-    }
-
-    int8_t state = 0;
-    err = nvs_get_i8(nvs_handle, key, &state);
-    if (err != ESP_OK)
-    {
-        printf("Error (%s) reading state from NVS! Setting default state to ON.\n", esp_err_to_name(err));
-        state = 1;                          // 默认设置为开状态
-        nvs_set_i8(nvs_handle, key, state); // 将默认状态保存到 NVS
-        nvs_commit(nvs_handle);
-    }
-
-    nvs_close(nvs_handle);
-    return state == 1;
-}
 void set_switches()
 {
     bool wifi_state = wifi_service_get_wifi_status();
@@ -304,19 +164,19 @@ void create_dropdown_screen(void)
     int saved_brightness = get_brightness_from_nvs();
     // 根据保存的亮度设置屏幕亮度
     lv_slider_set_value(brightness_slider, saved_brightness, LV_ANIM_OFF);
+    tft.setBrightness(saved_brightness);
 
     // 添加滑块调节音量
     slider_label = lv_label_create(status);
     lv_label_set_text(slider_label, "\nvolume:");
     volume_slider = lv_slider_create(status);
     lv_obj_set_width(volume_slider, 150);
-    lv_slider_set_range(volume_slider, 10, 255);
+    lv_slider_set_range(volume_slider, 0, 100);
     lv_slider_set_value(volume_slider, 50, LV_ANIM_OFF);
     lv_obj_add_event_cb(volume_slider, volume_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    // 读取保存的亮度值
-    int saved_volume = get_volume_from_nvs();
-    // 根据保存的亮度设置屏幕亮度
+    uint8_t saved_volume = get_volume_from_nvs();
     lv_slider_set_value(volume_slider, saved_volume, LV_ANIM_OFF);
+    set_uac_volume(saved_volume);
 
     // 创建任务信息的图表对象
     chart = lv_chart_create(status);
@@ -349,16 +209,16 @@ void create_dropdown_screen(void)
     lv_label_set_text(tasks_label, "");
 
     // 添加 任务内存 列表
-    table = lv_table_create(status);
-    lv_table_set_cell_value(table, 0, 0, "TaskName");
-    lv_table_set_cell_value(table, 0, 1, "HWM");
-    lv_table_set_cell_value(table, 0, 2, "CPU%");
-    lv_obj_set_width(table, DISP_HOR_RES - 20);
-    lv_table_set_col_width(table, 0, (DISP_HOR_RES - 20) / 3);
-    lv_table_set_col_width(table, 1, (DISP_HOR_RES - 20) / 3);
-    lv_table_set_col_width(table, 2, (DISP_HOR_RES - 20) / 3);
-    lv_obj_add_event_cb(table, draw_part_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
-    //lv_obj_set_style_text_font(table,&lv_font_unscii_8,0);
+    tasks_table = lv_table_create(status);
+    lv_table_set_cell_value(tasks_table, 0, 0, "TaskName");
+    lv_table_set_cell_value(tasks_table, 0, 1, "HWM");
+    lv_table_set_cell_value(tasks_table, 0, 2, "CPU%");
+    lv_obj_set_width(tasks_table, DISP_HOR_RES - 20);
+    lv_table_set_col_width(tasks_table, 0, (DISP_HOR_RES - 20) / 3);
+    lv_table_set_col_width(tasks_table, 1, (DISP_HOR_RES - 20) / 3);
+    lv_table_set_col_width(tasks_table, 2, (DISP_HOR_RES - 20) / 3);
+    lv_obj_add_event_cb(tasks_table, draw_part_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+    //lv_obj_set_style_text_font(tasks_table,&lv_font_unscii_8,0);
 
     // 启动定时器周期性更新系统信息
     timer_update_system_info = lv_timer_create(update_system_info, 1000, NULL); // 每秒更新一次
@@ -435,9 +295,9 @@ void volume_slider_event_cb(lv_event_t *e)
     lv_obj_t *slider = lv_event_get_target(e);
     uint8_t volume = (uint8_t)lv_slider_get_value(slider);
 
-    ESP_LOGI(TAG, "Adjusting brightness to %d%%", volume * 100 / 255);
+    ESP_LOGI(TAG, "Adjusting brightness to %d%%", volume);
     // 调用硬件接口调整屏幕亮度
-    //uac_host_device_set_volume(s_spk_dev_handle, volume);
+    set_uac_volume(volume);
 }
 // 比较函数，用于按 highWaterMark 从大到小排序
 int compare_task_info(const void *a, const void *b)
@@ -494,7 +354,7 @@ void update_system_info(_lv_timer_t *timer)
         // 清空图表数据
         lv_chart_set_all_value(chart, high_water_mark_series, LV_CHART_POINT_NONE);
         lv_chart_set_all_value(chart, cpu_usage_series, LV_CHART_POINT_NONE);
-        lv_obj_clean(table);
+        lv_obj_clean(tasks_table);
         if (taskCount > 0)
         {
             // 分配内存来存储排序后的任务信息
@@ -504,7 +364,7 @@ void update_system_info(_lv_timer_t *timer)
                 // 提取任务信息并存储到 taskInfoArray
                 for (index = 0; index < taskCount; index++)
                 {
-                    strncpy(taskInfoArray[index].taskName, taskStatusArray[index].pcTaskName, configMAX_TASK_NAME_LEN);
+                    strncpy(taskInfoArray[index].taskName, taskStatusArray[index].pcTaskName, MAX_TASK_NAME_LEN);
                     taskInfoArray[index].highWaterMark = uxTaskGetStackHighWaterMark(taskStatusArray[index].xHandle);
                     // 计算 CPU 占用率
                     taskInfoArray[index].cpuUsage = 0;
@@ -526,11 +386,11 @@ void update_system_info(_lv_timer_t *timer)
                     lv_coord_t *ser2_array = lv_chart_get_y_array(chart, cpu_usage_series);
                     ser1_array[index] = taskInfoArray[index].highWaterMark;
                     ser2_array[index] = taskInfoArray[index].cpuUsage;
-                    lv_table_set_cell_value(table, index + 1, 0, taskInfoArray[index].taskName);
+                    lv_table_set_cell_value(tasks_table, index + 1, 0, taskInfoArray[index].taskName);
                     snprintf(temp, sizeof(temp), "%u", taskInfoArray[index].highWaterMark);
-                    lv_table_set_cell_value(table, index + 1, 1, temp);
+                    lv_table_set_cell_value(tasks_table, index + 1, 1, temp);
                     snprintf(temp, sizeof(temp), "%lu%%", taskInfoArray[index].cpuUsage);
-                    lv_table_set_cell_value(table, index + 1, 2, temp);
+                    lv_table_set_cell_value(tasks_table, index + 1, 2, temp);
 
                     // lv_chart_set_value_by_id(chart,high_water_mark_series,);
                 }
@@ -549,6 +409,7 @@ void update_system_info(_lv_timer_t *timer)
 void switch_to_main_screen(void)
 {
     save_brightness_to_nvs(lv_slider_get_value(brightness_slider));
+    save_volume_to_nvs(lv_slider_get_value(volume_slider));
     lv_scr_load_anim(main_screen, LV_SCR_LOAD_ANIM_MOVE_TOP, 500, 0, false);
 }
 void dropdown_screen_backbtn_cb(lv_event_t *e)

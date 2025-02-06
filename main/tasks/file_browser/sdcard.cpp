@@ -1,4 +1,23 @@
 #include "sdcard.hpp"
+
+#include "lvgl.h"
+#include "esp_log.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+
+#include <dirent.h>
+#include <sys/stat.h>
+#include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "freertos/queue.h"
+
+#include <ctype.h>
+#include "conf.h"
+#include "audio_task/audio_countrol_task.h"
 void file_item_click_handler(lv_event_t *e);
 void back_btn_click_handler(lv_event_t *e);
 void all_clear(lv_event_t *e);
@@ -128,29 +147,6 @@ void file_item_click_handler(lv_event_t *e)
         ESP_LOGE(TAG, "Failed to get file info: %s", full_path);
         return;
     }
-    // 为防止栈溢出，将 struct stat 分配到堆上
-    // struct stat *st = (struct stat *)malloc(sizeof(struct stat));
-
-    // if (!st)
-    // {
-    //     ESP_LOGE(TAG, "Failed to allocate memory for struct stat");
-    //     return;
-    // }
-    // if (stat(full_path, st) != 0)
-    // {
-    //     ESP_LOGE(TAG, "Failed to get file info: %s", full_path);
-    //     return;
-    // }
-
-    // 如果是目录，则进入目录
-    // if (S_ISDIR(st->st_mode))
-    // {
-    //     // 更新当前路径
-    //     snprintf(current_path, sizeof(current_path), "%s", full_path);
-    //     list_files(current_path);
-    //     ESP_LOGI(TAG, "current_path: %s", current_path);
-    //     return;
-    // }
     if (S_ISDIR(st.st_mode))
     {
         snprintf(current_path, sizeof(current_path), "%s", full_path);
@@ -171,13 +167,6 @@ void file_item_click_handler(lv_event_t *e)
     // 处理文本文件
     if (strcmp(ext, "txt") == 0 || strcmp(ext, "lrc") == 0)
     {
-        // 检查文件大小
-        // if (st->st_size > MAX_TXT_FILE_SIZE)
-        // { // 文件大于 1KB，不处理
-        //     ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st->st_size);
-        //     free(st); // 释放内存
-        //     return;
-        // }
         if (st.st_size > MAX_TXT_FILE_SIZE)
         {
             ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st.st_size);
@@ -209,13 +198,6 @@ void file_item_click_handler(lv_event_t *e)
     // 处理图片文件
     else if (strcmp(ext, "jpg") == 0 || strcmp(ext, "png") == 0)
     {
-        // 检查文件大小
-        // if (st->st_size > MAX_PIC_FILE_SIZE)
-        // { // 文件大于 1KB，不处理
-        //     ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st->st_size);
-        //     free(st); // 释放内存
-        //     return;
-        // }
         if (st.st_size > MAX_PIC_FILE_SIZE)
         {
             ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st.st_size);
@@ -223,23 +205,15 @@ void file_item_click_handler(lv_event_t *e)
         }
         show_image(full_path); // 在 LVGL 中显示图片
     }
-     // 处理图片文件
+     // 处理音乐文件
     else if (strcmp(ext, "mp3") == 0 || strcmp(ext, "wav") == 0)
     {
-        xQueueSend(audio_file_queue, full_path, portMAX_DELAY);
-        ESP_LOGI(TAG, "Send audio file path: %s", full_path);
+        play_sdcard_mp3_files(full_path, false);
     }
     // 其他文件不处理
     else
     {
         ESP_LOGI(TAG, "Unsupported file type: %s, open as text", full_path);
-        // 检查文件大小
-        // if (st->st_size > MAX_TXT_FILE_SIZE)
-        // { // 文件大于 1KB，不处理
-        //     ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st->st_size);
-        //     free(st); // 释放内存
-        //     return;
-        // }
         if (st.st_size > MAX_TXT_FILE_SIZE)
         {
             ESP_LOGI(TAG, "File is too large: %s (size: %ld bytes)", full_path, st.st_size);
@@ -285,11 +259,6 @@ void file_item_click_handler(lv_event_t *e)
 // 显示文本内容的回调函数
 static void show_text_content(const char *text)
 {
-    // lv_obj_t* text_area = lv_textarea_create(lv_scr_act());
-    // lv_textarea_set_text(text_area, text);
-    // lv_obj_set_size(text_area, LV_PCT(80), LV_PCT(80));
-    // lv_obj_align(text_area, LV_ALIGN_CENTER, 0, 0);
-
     // 创建窗口
     lv_obj_t *win = lv_win_create(lv_scr_act(), 30);
     lv_obj_set_size(win, LV_HOR_RES, LV_VER_RES);
@@ -383,3 +352,4 @@ void all_clear(lv_event_t *e)
     lv_obj_clean(file_list);
     lv_obj_del(file_list);
 }
+

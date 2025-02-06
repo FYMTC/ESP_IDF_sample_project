@@ -1,5 +1,4 @@
 #include "usb_uac.h"
-
 #include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -13,14 +12,10 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #include "driver/sdmmc_defs.h"
-#include "esp_audio_dec.h"
-#include "esp_audio_dec_reg.h"
-#include "esp_mp3_dec.h"
-#include "audio_player.h"
-#include <inttypes.h>
+#include <inttypes.h> // 包含 PRIu32 宏
 #include "string.h"
-// 包含 PRIu32 宏
-static const char *TAG = "AUDIO_PLAYER"; // 日志标签
+#include "esp_audio_dec.h"//esp_audio_dec_out_frame_t
+static const char *TAG = "UAC HOST";
 // 定义USB主机任务的优先级为5
 #define USB_HOST_TASK_PRIORITY 5
 // 定义USB音频类（UAC）任务的优先级为5
@@ -30,42 +25,29 @@ static const char *TAG = "AUDIO_PLAYER"; // 日志标签
 
 // 定义BIT1_SPK_START宏，用于表示扬声器启动的位掩码，0x01左移0位，即0x01
 #define BIT1_SPK_START (0x01 << 0)
-// 定义默认音量为30
-#define DEFAULT_VOLUME 30
 // 定义默认的USB音频类（UAC）采样频率为48000Hz
 #define DEFAULT_UAC_FREQ 48000
 // 定义默认的USB音频类（UAC）位深度为16位
 #define DEFAULT_UAC_BITS 16
 // 定义默认的USB音频类（UAC）通道数为2（立体声）
 #define DEFAULT_UAC_CH 2
-// 定义USB主机任务堆栈大小为3KB
+// 定义USB主机任务堆栈大小"usb_events"
 #define USB_HOST_TASK_STACK_SIZE 1024 * 3
-// 定义USB音频类（UAC）任务堆栈大小为3KB
+// 定义USB音频类（UAC）任务堆栈大小 "uac_events"
 #define UAC_TASK_STACK_SIZE 1024 * 3
-// 定义音频编解码器任务堆栈大小为4KB
-#define codec_TASK_STACK_SIZE 1024 * 4
-// 定义USB音频类主机任务堆栈大小为3KB
-#define USB_UAC_Host_STACK_SIZE 1024 * 3
-// 定义帧缓冲区大小为4KB
-#define input_buffer_size 12*1024
-#define out_fram_buffer_size 4096
+// 定义USB音频类主机任务堆栈大小 "USB UAC Host"
+#define USB_UAC_Host_STACK_SIZE 1024 * 2
+// UAC播放任务堆栈大小
+#define player_TASK_STACK_SIZE 1024 * 2
+
+// 定义用于传递解码后音频数据的队列
+QueueHandle_t uac_audio_data_queue;
 
 static QueueHandle_t s_event_queue = NULL;          // 事件队列
 uac_host_device_handle_t s_spk_dev_handle = NULL;   // USB音频设备句柄
 static uint32_t s_spk_curr_freq = DEFAULT_UAC_FREQ; // 当前扬声器采样频率
 static uint8_t s_spk_curr_bits = DEFAULT_UAC_BITS;  // 当前扬声器位深度
 static uint8_t s_spk_curr_ch = DEFAULT_UAC_CH;      // 当前扬声器通道数
-esp_audio_dec_handle_t decoder;
-// 定义队列句柄
-QueueHandle_t audio_file_queue;
-// 定义音量控制队列
-QueueHandle_t volume_queue;
-// 全局音量值
-uint8_t current_volume = 30;
-
-// 全局变量，用于控制当前播放状态
-volatile bool is_playing = false;
-volatile bool stop_current_playback = false;
 
 // USB音频设备回调函数声明
 static void uac_device_callback(uac_host_device_handle_t uac_device_handle, const uac_host_device_event_t event, void *arg);
@@ -109,57 +91,6 @@ typedef struct
         } device_evt;                        // 设备事件结构体
     };
 } s_event_queue_t;
-
-/**
- * @brief 音频播放器静音功能
- *
- * @param setting 静音设置
- * @return esp_err_t 返回ESP_OK表示成功，否则返回错误码
- */
-static esp_err_t _audio_player_mute_fn(AUDIO_PLAYER_MUTE_SETTING setting)
-{
-    if (s_spk_dev_handle == NULL)
-    {
-        return ESP_ERR_INVALID_STATE; // 设备未连接，返回无效状态
-    }
-    ESP_LOGI(TAG, "mute setting: %s", setting == AUDIO_PLAYER_MUTE ? "mute" : "unmute");
-    // 某些UAC设备可能不支持静音，因此不检查返回值
-    if (setting == AUDIO_PLAYER_UNMUTE)
-    {
-        uac_host_device_set_volume(s_spk_dev_handle, DEFAULT_VOLUME); // 设置音量
-        uac_host_device_set_mute(s_spk_dev_handle, false);            // 取消静音
-    }
-    else
-    {
-        uac_host_device_set_volume(s_spk_dev_handle, 0);  // 设置音量为0
-        uac_host_device_set_mute(s_spk_dev_handle, true); // 静音
-    }
-    return ESP_OK;
-}
-
-/**
- * @brief 音频播放器写数据功能
- *
- * @param audio_buffer 音频数据缓冲区
- * @param len 数据长度
- * @param bytes_written 实际写入的字节数
- * @param timeout_ms 超时时间
- * @return esp_err_t 返回ESP_OK表示成功，否则返回错误码
- */
-static esp_err_t _audio_player_write_fn(void *audio_buffer, size_t len, size_t *bytes_written, uint32_t timeout_ms)
-{
-    if (s_spk_dev_handle == NULL)
-    {
-        return ESP_ERR_INVALID_STATE; // 设备未连接，返回无效状态
-    }
-    *bytes_written = 0;
-    esp_err_t ret = uac_host_device_write(s_spk_dev_handle, audio_buffer, len, timeout_ms); // 写入音频数据
-    if (ret == ESP_OK)
-    {
-        *bytes_written = len; // 写入成功，更新写入字节数
-    }
-    return ret;
-}
 
 /**
  * @brief USB音频设备回调函数
@@ -282,8 +213,8 @@ static void uac_lib_task(void *arg)
                     const uac_host_device_config_t dev_config = {
                         .addr = addr,
                         .iface_num = iface_num,
-                        .buffer_size = 16000,     ///////////////////////16000
-                        .buffer_threshold = 4000*2, ///////////////////4000
+                        .buffer_size = 16000,
+                        .buffer_threshold = 4000,
                         .callback = uac_device_callback,
                         .callback_arg = NULL,
                     };
@@ -352,180 +283,26 @@ static void uac_lib_task(void *arg)
     ESP_ERROR_CHECK(uac_host_uninstall()); // 卸载UAC驱动
 }
 
-// 根据文件扩展名获取音频类型
-esp_audio_type_t get_audio_type_from_file(const char *file_path)
+void uac_audio_player_task(void *pvParameters)
 {
-    const char *ext = strrchr(file_path, '.');
-    if (ext == NULL)
-    {
-        return ESP_AUDIO_TYPE_UNSUPPORT;
-    }
-
-    if (strcmp(ext, ".aac") == 0)
-    {
-        return ESP_AUDIO_TYPE_AAC;
-    }
-    else if (strcmp(ext, ".mp3") == 0)
-    {
-        return ESP_AUDIO_TYPE_MP3;
-    }
-    else
-    {
-        return ESP_AUDIO_TYPE_UNSUPPORT;
-    }
-}
-
-// 音频解码和播放任务
-void audio_player_task(void *pvParameters)
-{
-    // 注册 MP3 解码器
-    esp_mp3_dec_register();
-
     while (1)
     {
-        char file_path[256];
-        if (xQueueReceive(audio_file_queue, &file_path, portMAX_DELAY) == pdTRUE)
+        esp_audio_dec_out_frame_t out_frame;
+        if (xQueueReceive(uac_audio_data_queue, &out_frame, portMAX_DELAY) == pdTRUE)
         {
-            ESP_LOGI(TAG, "Received file path: %s", file_path);
-
-            // 根据文件扩展名选择解码器类型
-            esp_audio_type_t audio_type = get_audio_type_from_file(file_path);
-            if (audio_type == ESP_AUDIO_TYPE_UNSUPPORT)
+            if (out_frame.buffer)
             {
-                ESP_LOGE(TAG, "Unsupported audio format: %s", file_path);
-                continue;
-            }
-
-            // 配置解码器
-            esp_audio_dec_cfg_t dec_cfg = {
-                .type = audio_type, // 根据文件扩展名设置解码器类型
-                .cfg = NULL,        // 如果没有特殊配置，设置为 NULL
-                .cfg_sz = 0         // 如果没有特殊配置，设置为 0
-            };
-
-            esp_audio_dec_handle_t decoder;
-            esp_audio_err_t ret;
-
-            // 1. 打开解码器
-            ret = esp_audio_dec_open(&dec_cfg, &decoder);
-            if (ret != ESP_AUDIO_ERR_OK)
-            {
-                ESP_LOGE(TAG, "Failed to open audio decoder, error: %d", ret);
-                continue;
-            }
-
-            // 2. 准备输入数据和输出缓冲区
-            uint8_t *input_buffer = (uint8_t *)heap_caps_malloc(input_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT); // 输入缓冲区
-            uint8_t *frame_data = (uint8_t *)heap_caps_malloc(out_fram_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);   // 初始输出缓冲区
-            esp_audio_dec_out_frame_t out_frame = {.buffer = frame_data, .len = out_fram_buffer_size};
-
-            uac_host_device_set_volume(s_spk_dev_handle, current_volume); // 设置音量
-            // 打开文件
-            FILE *file = fopen(file_path, "rb");
-            if (file == NULL)
-            {
-                ESP_LOGE(TAG, "Failed to open file: %s", file_path);
-                continue;
-            }
-            esp_audio_dec_in_raw_t raw;
-            raw.len=0;
-            // 定义一个临时缓冲区，用于保存未解码的数据
-            uint8_t *temp_buffer = (uint8_t *)heap_caps_malloc(input_buffer_size+ out_fram_buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT); // 假设最大为两倍的帧缓冲区大小
-            uint32_t temp_buffer_len = 0;                                                                                     // 临时缓冲区中未解码数据的长度
-            while (1)
-            {
-                if (raw.len < out_fram_buffer_size)
-                {
-                    // 从文件中读取一段数据
-                    size_t bytes_read = fread(input_buffer, 1, input_buffer_size, file);
-
-                    if (ferror(file))
-                    {
-                        ESP_LOGE(TAG, "Error reading file: %s", file_path);
-                        break;
-                    }
-                    // 如果有未解码的数据，将其与新的输入数据拼接
-                    memcpy(temp_buffer + temp_buffer_len, input_buffer, bytes_read);
-                    raw.buffer = temp_buffer;
-                    raw.len = temp_buffer_len + bytes_read;
-                    ESP_LOGI(TAG, "Read %zu, temp_buffer_len: %lu, raw.len: %lu", bytes_read, temp_buffer_len, raw.len);
-                }
-                // 解码数据并播放
-                //  while (raw.len)
-                //  {
-                ret = esp_audio_dec_process(decoder, &raw, &out_frame);
-                if (ret != ESP_AUDIO_ERR_OK && ret != ESP_AUDIO_ERR_BUFF_NOT_ENOUGH)
-                {
-                    ESP_LOGE(TAG, "Failed to process audio data, error: %d", ret);
-                    break;
-                }
-                // 更新输入数据指针和长度
-                raw.buffer += raw.consumed;
-                raw.len -= raw.consumed;
-                ESP_LOGI(TAG, "consumed: %lu, raw.len: %lu", raw.consumed, raw.len);
-                // 如果有未解码的数据，保存到临时缓冲区
-                if (raw.len > 0 && raw.len <=out_fram_buffer_size+input_buffer_size)
-                {
-                    memcpy(temp_buffer, raw.buffer, raw.len);
-                    temp_buffer_len = raw.len;
-                    ESP_LOGI(TAG, "reset temp_buffer_len: %lu", temp_buffer_len);
-                }
-                else
-                {
-                    ESP_LOGE(TAG, "Invalid raw.len: %lu", raw.len);
-                    break;
-                }
-                if (ret == ESP_AUDIO_ERR_BUFF_NOT_ENOUGH)
-                {
-                    // 输出缓冲区不足，重新分配更大的缓冲区
-                    uint8_t *new_frame_data = (uint8_t *)heap_caps_realloc(out_frame.buffer, out_frame.needed_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
-                    if (new_frame_data == NULL)
-                    {
-                        ESP_LOGE(TAG, "Failed to realloc output buffer");
-                        break;
-                    }
-                    out_frame.buffer = new_frame_data;
-                    out_frame.len = out_frame.needed_size;
-                }
-                ESP_LOGI(TAG, "decoded_size: %lu", out_frame.decoded_size);
-                //}
                 esp_err_t write_ret = uac_host_device_write(s_spk_dev_handle, out_frame.buffer, out_frame.decoded_size, portMAX_DELAY);
+                //ESP_LOGI(TAG, "decoded_size: %lu", out_frame.decoded_size);
                 if (write_ret != ESP_OK)
                 {
                     ESP_LOGE(TAG, "Failed to write audio data to device, error: %d", write_ret);
-                    break;
-                }
-                if (feof(file))
-                {
-                    ESP_LOGI(TAG, "Finished reading file: %s", file_path);
-                    break; // 文件读取完毕
                 }
             }
-            // 关闭文件
-            fclose(file);
-            // 4. 获取解码器信息
-            esp_audio_dec_info_t dec_info;
-            ret = esp_audio_dec_get_info(decoder, &dec_info);
-            if (ret == ESP_AUDIO_ERR_OK)
-            {
-                ESP_LOGI(TAG, "Sample rate: %" PRIu32 ", Channels: %u, Bits per sample: %u",
-                         dec_info.sample_rate, dec_info.channel, dec_info.bits_per_sample);
-            }
-            else
-            {
-                ESP_LOGE(TAG, "Failed to get decoder info, error: %d", ret);
-            }
-
-            // 5. 关闭解码器
-            esp_audio_dec_close(decoder);
-
-            // 释放资源（PSRAM 中的内存）
-            heap_caps_free(frame_data);
-            heap_caps_free(input_buffer);
-            heap_caps_free(temp_buffer);
         }
     }
 }
+
 /**
  * @brief 主函数
  */
@@ -533,21 +310,6 @@ void uac_init(void)
 {
     s_event_queue = xQueueCreate(10, sizeof(s_event_queue_t)); // 创建事件队列
     assert(s_event_queue != NULL);
-
-    // 创建队列
-    audio_file_queue = xQueueCreate(5, sizeof(char[256]));
-    if (audio_file_queue == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to create queue");
-        return;
-    }
-    // 创建音量控制队列
-    volume_queue = xQueueCreate(5, sizeof(float));
-    if (volume_queue == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to create volume queue");
-        return;
-    }
 
     static TaskHandle_t uac_task_handle = NULL;
     BaseType_t ret = xTaskCreatePinnedToCore(uac_lib_task, "uac_events", UAC_TASK_STACK_SIZE, NULL,
@@ -557,6 +319,14 @@ void uac_init(void)
                                   USB_HOST_TASK_PRIORITY, NULL, 1); // 创建USB主机任务
     assert(ret == pdTRUE);
 
-    TaskHandle_t codec_task_handle = NULL;
-    xTaskCreate(audio_player_task, "audio_player_task", codec_TASK_STACK_SIZE, NULL, 5, &codec_task_handle);
+    // 创建解码后音频数据队列
+    uac_audio_data_queue = xQueueCreate(5, sizeof(esp_audio_dec_out_frame_t));
+    if (uac_audio_data_queue == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create audio data queue");
+        return;
+    }
+    TaskHandle_t uac_player_task_handle = NULL;
+    // 创建播放任务
+    xTaskCreatePinnedToCore(uac_audio_player_task, "uac_audio_player_task", player_TASK_STACK_SIZE, NULL, 3, &uac_player_task_handle, 1);
 }

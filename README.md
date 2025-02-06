@@ -93,10 +93,8 @@ FAT Filesystem support 开启长文件名支持
 
 打开了 UAC FIFO
 
-打开了Trace memory
-
-Use TRAX tracing feature
-KCONFIG Name: ESP32S3_TRAX
-
-Reserve memory for tracing both pro as well as app cpu execution
-KCONFIG Name: ESP32S3_TRAX_TWOBANKS
+开启 FREERTOS 任务列表功能
+FREERTOS_GENERATE_RUN_TIME_STATS
+FREERTOS_VTASKLIST_INCLUDE_COREID
+FREERTOS_USE_STATS_FORMATTING_FUNCTIONS
+FREERTOS_USE_TRACE_FACILITY

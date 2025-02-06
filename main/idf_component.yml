@@ -4,9 +4,9 @@ dependencies:
   espressif/mpu6050: "^1.2.0"
   usb_host_hid: "1.0.0"
   usb_host_msc: "^1.0.0"
+  espressif/led_strip: "^3.0.0"
   espressif/usb_host_uac: "^1.2.0"
   espressif/esp_audio_codec: "^2.0.3"
-  chmorgan/esp-audio-player: "1.0.*"
   #lvgl/lvgl: "^8.3.7"
   ## Required IDF version
   idf:

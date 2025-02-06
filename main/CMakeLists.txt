@@ -43,7 +43,7 @@ set(EXTRA_COMPONENT_DIRS ${PROJECT_SOURCE_DIR}/components)
 #target_link_libraries(${COMPONENT_TARGET} INTERFACE driver)
 # 注册组件并指定源文件、头文件和依赖的库
 idf_component_register(
-    SRCS "main.cpp" "ESP32_S3_main.cpp" ${GAME_SRCS} ${UI_SRCS} ${HAL_LVGL_SRCS} ${BT_HID_host_SRCS} ${TASKS_SRCS}
+    SRCS "ESP32_S3_main.cpp" "main.cpp" ${GAME_SRCS} ${UI_SRCS} ${HAL_LVGL_SRCS} ${BT_HID_host_SRCS} ${TASKS_SRCS}
     INCLUDE_DIRS "." ${GAME_INCS} ${UI_INCS} ${HAL_LVGL_INCS} ${BT_HID_host_INCS} ${TASKS_INCS}
     REQUIRES fatfs lvgl esp_lcd spiffs nvs_flash LovyanGFX esp_hid usb vfs esp_http_client esp-tls# 指定依赖的库
     EMBED_TXTFILES baidu_com.pem

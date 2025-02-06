@@ -47,6 +47,11 @@ TaskHandle_t wifi_connect_task_handle = NULL; // 连接任务句柄
 #define DEFAULT_LISTEN_INTERVAL 3 // 定义默认监听间隔
 #define DEFAULT_BEACON_TIMEOUT 6  // 定义默认信标超时
 
+// 添加全局变量
+static uint8_t retry_count = 0;
+static const uint8_t MAX_RETRY = 5;
+static const uint16_t INITIAL_RETRY_DELAY_MS = 1000; // 初始重试延迟1秒
+
 // 保存 Wi-Fi 配置到 NVS
 static void save_wifi_service_config_to_nvs(const char *ssid, const char *password)
 {
@@ -144,22 +149,25 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         connection_status = WIFI_CONNECTION_STATUS_FAILED;
         ESP_LOGI(TAG, "Wi-Fi disconnected, restarting scan");
 
-        // 重试连接
-        esp_wifi_connect();
-
-        // // 重新启动扫描任务
-        // if (is_scan_enabled && is_wifi_enabled)
-        // {
-        //     xTaskNotifyGive(wifi_scan_task_handle); // 唤醒扫描任务
-        // }
-    }
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) // 扫描完成
+        if (retry_count < MAX_RETRY) {
+            // 指数退避：延迟 = 初始延迟 * 2^重试次数
+            uint32_t delay_ms = INITIAL_RETRY_DELAY_MS * (1 << retry_count);
+            ESP_LOGI(TAG, "Retrying connection in %lu ms (attempt %d/%d)", delay_ms, retry_count+1, MAX_RETRY);
+            vTaskDelay(pdMS_TO_TICKS(delay_ms));
+            esp_wifi_connect();
+            retry_count++;
+        } else {
+            ESP_LOGE(TAG, "Max retries reached. Giving up.");
+            retry_count = 0; // 重置计数器
+        }
+    }else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) // 扫描完成
     {
         complete_wifi_scan_flag = true;
         is_scanning = false; // 标记扫描完成
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) // 连接成功
     {
+        retry_count = 0; // 连接成功，重置重试计数器
         connection_status = WIFI_CONNECTION_STATUS_CONNECTED;
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "Connected to AP, IP: " IPSTR, IP2STR(&event->ip_info.ip));
@@ -229,17 +237,15 @@ static void wifi_scan_task(void *pvParameters)
 /// 连接任务
 static void wifi_connect_task(void *pvParameters)
 {
+    wifi_connect_request_t request;
     while (1)
     {
         if (wifi_connect_task_handle == NULL)
         {
             break; // 如果任务句柄无效，退出任务
         }
-        char ssid[33] = {0};
-        char password[65] = {0};
-        if (xQueueReceive(wifi_connect_queue, &ssid, portMAX_DELAY))
+        if (xQueueReceive(wifi_connect_queue,  &request, portMAX_DELAY))
         {
-            xQueueReceive(wifi_connect_queue, &password, portMAX_DELAY);
 
             // 检查 Wi-Fi 是否已启动
             if (!is_wifi_enabled)
@@ -260,10 +266,10 @@ static void wifi_connect_task(void *pvParameters)
                     .threshold.authmode = DEFAULT_AUTHMODE,
                 },
             };
-            strncpy((char *)wifi_config.sta.ssid, ssid, 32);
-            strncpy((char *)wifi_config.sta.password, password, 64);
+            strncpy((char *)wifi_config.sta.ssid, request.ssid, 32);
+            strncpy((char *)wifi_config.sta.password, request.password, 64);
 
-            ESP_LOGI(TAG, "Connecting to SSID: %s", ssid);
+            ESP_LOGI(TAG, "Connecting to SSID: %s", request.ssid);
             ESP_LOGI(TAG, "Wi-Fi config set: SSID=%s, Password=%s", wifi_config.sta.ssid, wifi_config.sta.password);
 
             // 设置 Wi-Fi 配置
@@ -282,10 +288,10 @@ static void wifi_connect_task(void *pvParameters)
                 continue;
             }
 
-            ESP_LOGI(TAG, "Connecting to SSID: %s", ssid);
+            ESP_LOGI(TAG, "Connecting to SSID: %s", wifi_config.sta.ssid);
 
             // 保存 Wi-Fi 配置到 NVS
-            save_wifi_service_config_to_nvs(ssid, password);
+            save_wifi_service_config_to_nvs(request.ssid,request.password);
         }
     }
     // 任务退出时清理
@@ -374,7 +380,7 @@ void wifi_service_init(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 
     // 创建连接请求队列
-    wifi_connect_queue = xQueueCreate(2, sizeof(char[33])); // 队列大小为 1
+    wifi_connect_queue = xQueueCreate(2, sizeof(wifi_connect_request_t)); // 队列保存结构体
     if (wifi_connect_queue == NULL)
     {
         ESP_LOGE(TAG, "Failed to create wifi_connect_queue");
@@ -399,6 +405,17 @@ uint8_t wifi_service_get_scan_results(wifi_scan_result_t *results, uint8_t max_r
 // 请求连接到指定 SSID
 bool wifi_service_connect(const char *ssid, const char *password)
 {
+    if (strnlen(ssid, 33) >= 33 || strnlen(password, 65) >= 65) {
+        ESP_LOGE(TAG, "SSID or password exceeds maximum length");
+        return false;
+    }
+
+    wifi_connect_request_t request;
+    strncpy(request.ssid, ssid, 32);
+    request.ssid[32] = '\0';
+    strncpy(request.password, password, 64);
+    request.password[64] = '\0';
+
     if (wifi_connect_queue == NULL)
     {
         ESP_LOGE(TAG, "wifi_connect_queue is not initialized");
@@ -419,17 +436,8 @@ bool wifi_service_connect(const char *ssid, const char *password)
         return false;
     }
 
-    // 发送 SSID
-    if (xQueueSend(wifi_connect_queue, ssid, pdMS_TO_TICKS(100)) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "Failed to send SSID to queue");
-        return false;
-    }
-
-    // 发送密码
-    if (xQueueSend(wifi_connect_queue, password, pdMS_TO_TICKS(100)) != pdTRUE)
-    {
-        ESP_LOGE(TAG, "Failed to send password to queue");
+    if (xQueueSend(wifi_connect_queue, &request, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to send connect request to queue");
         return false;
     }
 
@@ -467,12 +475,26 @@ void wifi_service_set_wifi_enabled(bool enabled)
     // 启动或停止 Wi-Fi
     if (enabled)
     {
+        // 重新初始化Wi-Fi
+        ESP_ERROR_CHECK(esp_netif_init());
+        ESP_ERROR_CHECK(esp_event_loop_create_default());
+        esp_netif_create_default_wifi_sta();
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        ESP_ERROR_CHECK(esp_wifi_init(&cfg));
         ESP_ERROR_CHECK(esp_wifi_start());
-        ESP_ERROR_CHECK(esp_wifi_set_inactive_time(WIFI_IF_STA, DEFAULT_BEACON_TIMEOUT));
     }
     else
     {
+        // 停止并释放资源
         ESP_ERROR_CHECK(esp_wifi_stop());
+        esp_wifi_deinit(); // 释放Wi-Fi驱动资源
+        //esp_netif_destroy_default_wifi(sta_netif); // 销毁网络接口
+        if (wifi_connect_queue) {
+            vQueueDelete(wifi_connect_queue); // 删除队列
+            wifi_connect_queue = NULL;
+        }
+        // 关闭扫描任务（如果有）
+        wifi_service_set_scan_enabled(false);
     }
 
     ESP_LOGI(TAG, "Wi-Fi %s", enabled ? "enabled" : "disabled");

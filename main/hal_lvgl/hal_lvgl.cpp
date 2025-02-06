@@ -275,9 +275,6 @@ void lv_port_disp_init(void)
                           MY_DISP_HOR_RES * MY_DISP_VER_RES/7); /*Initialize the display buffer*/
     #endif 
 #endif
-    print_ram_info();
-    
-
     // static lv_disp_draw_buf_t draw_buf_dsc_2;
     // static lv_color_t buf_2_1[MY_DISP_HOR_RES * 24];                        /*A buffer for 10 rows*/
     // static lv_color_t buf_2_2[MY_DISP_HOR_RES * 24];                        /*An other buffer for 10 rows*/
