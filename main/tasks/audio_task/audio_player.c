@@ -46,29 +46,7 @@ QueueHandle_t audio_control_file_queue;
 // 定义音频任务堆栈大小
 #define codec_TASK_STACK_SIZE 1024 * 3
 #define codec_countrol_TASK_STACK_SIZE 1024 * 3
-
-static uint8_t get_volume_from_nvs()
-{
-    nvs_handle_t my_handle;
-    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error opening NVS handle for reading!");
-        return 50; 
-    }
-
-    uint8_t volume = 50; 
-    err = nvs_get_u8(my_handle, BRIGHTNESS_KEY, &volume);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
-        volume = 50; 
-    }
-
-    nvs_close(my_handle);
-    
-    return volume;
-}
+extern uint8_t courten_volume;
 // 根据文件扩展名获取音频类型
 esp_audio_type_t get_audio_type_from_file(const char *file_path)
 {
@@ -152,7 +130,7 @@ void audio_decoder_task(void *pvParameters)
             player_playing = true;
             decoder_closed = false;
             audio_set_mute(false);
-            audio_set_volume(get_volume_from_nvs());
+            audio_set_volume(courten_volume);
             ESP_LOGI(TAG, "Received file path: %s", file_path);
 
             // 根据文件扩展名选择解码器类型
@@ -291,6 +269,7 @@ void audio_decoder_task(void *pvParameters)
                     if (!player_playing)
                     {
                         ESP_LOGI(TAG, "Player STOP play");
+                        led_brightness=0;
                         break;
                     }
                 }

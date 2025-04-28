@@ -8,8 +8,6 @@
 #include "nvs.h"
 #include <esp_sleep.h>
 
-#include "hal_disp.hpp"
-
 #include "game/cubegame/cubegame.h"
 #include "game/brickbreaker_project/ballgame.h"
 #include "game/airplane_shooting_project/flygame.h"
@@ -33,7 +31,9 @@ void create_dropdown_screen(void);
 bool load_switch_state(const char *key) ;
 
 void create_time_page() ;
-
+void create_heart_page();
+void create_mpu_page();
+void create_WIFI_screen();
 void htpp_weather(char *out_city, char *out_weather_text, char *out_temperature);
 void initialize_sntp(void);
 

@@ -11,34 +11,37 @@ extern "C" void app_main(void)
     sdcardinit();
     // 初始化 NVS
     init_nvs();
-    
     // 初始化 I2C
-
+    i2c_master_init(I2C_NUM_0);
+    i2c_scan(I2C_NUM_0);
     // 初始化 lvgl，屏幕，输入设备
     lv_init();
     lv_port_disp_init();
     lv_port_indev_init();
-    
-//    start_info_task();
 
-    wifi_service_init(); 
-    wifi_service_set_power_save_mode(WIFI_PS_MIN_MODEM); //设置WIFI省电模式
-    
+    start_info_task();
+
+    wifi_service_init();
+    wifi_service_set_power_save_mode(WIFI_PS_MIN_MODEM); // 设置WIFI省电模式
+    initialize_sntp(); // 初始化SNTP
 #if 1
 
     create_menu();
 
-    bt_host_start();//蓝牙鼠标
+    //lv_demo_benchmark();
 
-    //hid_host_main();//USB鼠标
+    bt_host_start(); // 蓝牙鼠标
 
-    initialize_sntp();
+    // hid_host_main();//USB鼠标
 
-    uac_init();
-    audio_player_init();
+    //uac_init();//USB音频输出，打开后USB CDC不工作。 
+    //audio_player_init();
 
-    led_task_init();
-    
+    // led_task_init();
+    brightness_task_main();
+
+    //rtc_task();
+
 #else
 #endif
 

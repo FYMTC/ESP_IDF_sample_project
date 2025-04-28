@@ -1,57 +1,137 @@
 dependencies:
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com
       type: service
     version: 0.5.3
   espressif/esp_audio_codec:
-    component_hash: 2df98c7494d311ee4c14368eb7bd1d00f787c8f52921e65baf0e085e250d8cf9
+    component_hash: 92cb0441b1602835f24eca63ab4a1528897a137527a6cadb2f8cd0eba32d76ff
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
-    version: 2.1.0
+    version: 2.2.1
+  espressif/esp_io_expander:
+    component_hash: fbc0de4082fc7c207dc98a93a0ed83d1a929a4ecee83cc567afb406f3ee6d4a6
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.2'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.1
+  espressif/esp_io_expander_tca9554:
+    component_hash: e9e49ddb1038c2b54b13c51b5e3e6dbdd10a878959c8ab0e0a7c8206316add61
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.2'
+    - name: espressif/esp_io_expander
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.0.1
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.1
   espressif/jsmn:
     component_hash: d80350c41bbaa827c98a25b6072df00884e72f54885996fab4a4f0aebce6b6c3
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.3'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.1.0
   espressif/led_strip:
     component_hash: f907c58f722c58ab8545366668cfd8769cefb7d97a631a14e9d16234cc72bdff
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 3.0.0
   espressif/mpu6050:
     component_hash: d69219ccb141372b863c511749ffbeab28417ac71c205d7ed7030c308e1b6832
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.0'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.2.0
   espressif/usb_host_hid:
     component_hash: 71241f16d00268738ffc62a12ca55f209e2e93ed1e6ed96debee2e96292340ae
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
+    targets:
+    - esp32s2
+    - esp32s3
     version: 1.0.0
   espressif/usb_host_msc:
     component_hash: efbf44743b0f1f1f808697a671064531ae4661ccbce84632637261f8f670b375
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4.1'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
     version: 1.1.3
   espressif/usb_host_uac:
     component_hash: afb7da2c760c08a56bbc238f0c51d64e8289cb4b1de276670feab43a6a9fc0c9
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.5.*
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
     version: 1.2.0
   idf:
-    component_hash: null
     source:
       type: idf
-    version: 5.1.2
-manifest_hash: a1427deb274dbfb3f60414e52e56593fc8ed866d0f3ccdf0998fc2849001251c
+    version: 5.1.4
+direct_dependencies:
+- espressif/esp_audio_codec
+- espressif/esp_io_expander_tca9554
+- espressif/jsmn
+- espressif/led_strip
+- espressif/mpu6050
+- espressif/usb_host_hid
+- espressif/usb_host_msc
+- espressif/usb_host_uac
+- idf
+manifest_hash: a0ae90c116b8c959d59ebe2c5717c4c8f1df785483b5880ec17b86dcc552134f
 target: esp32s3
-version: 1.0.0
+version: 2.0.0

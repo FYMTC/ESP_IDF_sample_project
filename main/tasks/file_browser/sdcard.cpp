@@ -18,6 +18,8 @@
 #include <ctype.h>
 #include "conf.h"
 #include "audio_task/audio_countrol_task.h"
+extern lv_indev_t *indev_touchpad;
+
 void file_item_click_handler(lv_event_t *e);
 void back_btn_click_handler(lv_event_t *e);
 void all_clear(lv_event_t *e);
@@ -236,7 +238,7 @@ void file_item_click_handler(lv_event_t *e)
             return;
         }
         #else
-        content[1024] = {0}; 
+        char content[1024] = {0}; 
         #endif
         size_t len = fread(content, 1, sizeof(content) - 1, f);
         fclose(f);
@@ -283,11 +285,8 @@ static void drag_event_handler(lv_event_t * e)
 {
     lv_obj_t * obj = lv_event_get_target(e);
 
-    lv_indev_t * indev = lv_indev_get_act();
-    if(indev == NULL)  return;
-
     lv_point_t vect;
-    lv_indev_get_vect(indev, &vect);
+    lv_indev_get_vect(indev_touchpad, &vect);
 
     lv_coord_t x = lv_obj_get_x(obj) + vect.x;
     lv_coord_t y = lv_obj_get_y(obj) + vect.y;
@@ -312,7 +311,7 @@ static void show_image(const char *path)
     //lv_img_set_pivot(img, 0, 0);
     lv_img_set_size_mode(img, LV_IMG_SIZE_MODE_VIRTUAL);
     lv_obj_center(img);
-    //lv_obj_add_event_cb(img, drag_event_handler, LV_EVENT_PRESSING, NULL);
+    lv_obj_add_event_cb(img, drag_event_handler, LV_EVENT_PRESSING, NULL);
     lv_img_set_src(img, path);
     ESP_LOGI(TAG, "File img lv_full_path: %s", path);
 }

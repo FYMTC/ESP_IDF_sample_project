@@ -1,13 +1,3 @@
-/**
- * @file hal_disp.hpp
- * @author Forairaaaaa
- * @brief 
- * @version 0.1
- * @date 2023-05-20
- * 
- * @copyright Copyright (c) 2023
- * 
- */
 #pragma once
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>

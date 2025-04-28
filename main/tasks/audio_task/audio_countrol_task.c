@@ -33,7 +33,7 @@ static char current_file_path[MAX_PATH_LENGTH]; // 当前播放的文件路径
 static char base_path[MAX_PATH_LENGTH];         // 全局变量，存储音乐文件的基础路径
 static bool loop_playback = false;              // 是否开启循环播放
 static bool send_mp3_file;
-TaskHandle_t audio_task_handle = NULL;
+TaskHandle_t send_audio_path_task_handle = NULL;
 // 从 NVS 中读取上次播放的文件路径
 bool read_last_file_from_nvs(char *file_path)
 {
@@ -115,7 +115,7 @@ bool find_next_mp3_file(char *next_file_path)
             if (ext && strcmp(ext, ".mp3") == 0)
             { // 判断是否为 MP3 文件
                 char file_path[MAX_PATH_LENGTH];
-                snprintf(file_path, MAX_PATH_LENGTH, "%s/%s", base_path, file_name);
+                snprintf(file_path, sizeof(file_path), "%s/%s", base_path, file_name);
 
                 if (found_current)
                 {
@@ -184,7 +184,8 @@ void send_next_mp3_file()
     else
     {
         ESP_LOGW(TAG, "No more MP3 files to play");
-        vTaskDelete(NULL);
+        vTaskDelete(send_audio_path_task_handle);
+        send_audio_path_task_handle = NULL;
     }
 }
 void send_current_mp3_file()
@@ -200,19 +201,25 @@ void send_current_mp3_file()
     }
 }
 
-void audio_task(void *param)
+void send_audio_path_task(void *param)
 {
     while (1)
     {
         if (!player_playing && !send_mp3_file)
         {
             send_next_mp3_file(); // 发送下一个 MP3 文件
-            vTaskDelay(pdMS_TO_TICKS(10000));
+            while(!player_playing)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
         }else if (send_mp3_file)
         {
             send_current_mp3_file();
             send_mp3_file = false;
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            while(!player_playing)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(1000)); // 每隔 1 秒检查一次
     }
@@ -279,9 +286,9 @@ void play_sdcard_mp3_files(const char *path, bool loop)
 
     loop_playback = loop; // 设置是否开启循环播放
 
-    if (audio_task_handle == NULL)
+    if (send_audio_path_task_handle == NULL)
     {
-        xTaskCreate(audio_task, "send_audio_task", audio_task_stack_size, NULL, 5, NULL);
+        xTaskCreate(send_audio_path_task, "send_audio_task", audio_task_stack_size, NULL, 5, &send_audio_path_task_handle);
     }
 }
 void touch_task(void *param)

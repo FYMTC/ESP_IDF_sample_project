@@ -1,55 +1,67 @@
 #include "lvgl.h"
 #include <stdlib.h>
 #include "ballgame.h"
+#include "esp_log.h"
+extern lv_indev_t *indev_touchpad;
 
-#define  nhang     6
-#define  nlie      15
-#define  ballsizie   20
+// 定义常量
+#define  nhang     6       // 行数
+#define  nlie      15      // 列数
+#define  ballsizie   20     // 球的大小
 
+// 定义方块结构体
 typedef struct
 {
-    lv_obj_t  * obj;
-    lv_obj_t  * label;
-    unsigned int  alive;
+    lv_obj_t  * obj;       // 方块对象
+    lv_obj_t  * label;     // 方块标签
+    unsigned int  alive;   // 方块生命值
 }cubestype;
 
+// 定义方块数组
 cubestype  cube[nhang][nlie];
-static float movx=-1,movy=-1;
-static float currentx, currenty;
-static int   endx;
-static lv_obj_t * arrow;
-static lv_obj_t * ball1;
-static lv_obj_t * board1;
-static lv_obj_t * slider;
-static lv_obj_t * btn1;
-static lv_obj_t * lable;
-static lv_obj_t * btn2;
-static lv_obj_t * lable2;
-static lv_obj_t * qiu1;
-static lv_timer_t * t1;
-static lv_obj_t * panel;
-static lv_obj_t * panellable;
-static lv_obj_t * btext;
-static lv_obj_t * screen1;
-static lv_obj_t * botton_exit;
-static lv_obj_t * exit_lable;
-static lv_obj_t * label10;
-static int score=0;
-LV_IMG_DECLARE(qiu)
+
+
+// 定义全局变量
+static float movx=-1,movy=-1; // 球的移动速度
+static float currentx, currenty; // 球的当前坐标
+static int   endx; // 球的结束坐标
+static lv_obj_t * arrow; // 箭头标签
+static lv_obj_t * ball1; // 球对象
+static lv_obj_t * board1; // 挡板对象
+static lv_obj_t * slider; // 滑动条对象
+static lv_obj_t * btn1; // 开始按钮
+static lv_obj_t * lable; // 开始按钮标签
+static lv_obj_t * btn2; // 退出按钮
+static lv_obj_t * lable2; // 退出按钮标签
+static lv_obj_t * qiu1; // 球对象
+static lv_timer_t * t1; // 定时器
+static lv_obj_t * panel; // 面板对象
+static lv_obj_t * panellable; // 面板标签
+static lv_obj_t * btext; // 分数标签
+static lv_obj_t * screen1; // 屏幕对象
+static lv_obj_t * botton_exit; // 退出按钮
+static lv_obj_t * exit_lable; // 退出按钮标签
+static lv_obj_t * label10; // 标签
+static int score=0; // 分数
+LV_IMG_DECLARE(qiu) // 声明球图片
+// 定义函数原型
 static void all_clear(lv_event_t * e);
 static void btn1_event_cb(lv_event_t * e);
 static void cube_anim_great(lv_color_t value,short x,short y);
 static void timer_cb1(lv_timer_t * t);
 
+// 定义屏幕宽高和方块宽高
 static int screen_width;
 static int screen_height;
 static int cubewidht;
 static int cubehight;
 
+// 开始游戏函数
 void ballgame_start()
 {
-    score=0;
+    score=0; // 初始化分数
     
+    // 创建屏幕对象
     screen1=lv_tileview_create(lv_scr_act());
     lv_obj_set_style_bg_color(screen1,lv_color_hex(0x000000), LV_PART_MAIN);
     lv_obj_clear_flag(screen1, LV_OBJ_FLAG_SCROLLABLE);
@@ -190,14 +202,15 @@ void slider1_event_cb(lv_event_t * e)
 
 void timer_cb1(lv_timer_t * t)
 {
-    lv_point_t xy;
-    lv_indev_t * indev_touchpad = lv_indev_get_act();
-    lv_indev_get_point(indev_touchpad, &xy);
+    //lv_indev_t * indev_touchpad = lv_indev_get_act();
+    lv_point_t vect;
+    lv_indev_get_vect(indev_touchpad, &vect);
     
     int qiu_board_distan=0;
     static int qiuangle=0;
     static int last_touchx = 0; // 记录上一次的触摸点
-	int touchx = xy.x;
+	int touchx = vect.x;
+    //ESP_LOGI("GAME", "touchx:%d", touchx);
 	if (touchx <= screen_width - 100 && touchx >= 0)
     {
         int delta = touchx - last_touchx; // 计算移动距离

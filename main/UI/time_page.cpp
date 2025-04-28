@@ -13,7 +13,7 @@
 #include "esp_sntp.h"
 #include "esp_wifi.h"
 #include "nvs.h"
-
+#include "XPowersLib.h"
 // 日志标签
 static const char *TAG = "TIME PAGE";
 extern lv_obj_t *main_screen;
@@ -31,7 +31,7 @@ bool timeNeedsUpdate = false;
 bool timeLogUpdate = false;
 
 const char *timeAPI = "http://worldtimeapi.org/api/timezone/Asia/Shanghai";
-float battery_voltage = 3.7; // 示例电池电压
+extern XPowersAXP2101 PMU;
 
 // NVS 键名
 static const char *NVS_NAMESPACE = "time_storage";
@@ -208,7 +208,7 @@ void create_time_page()
 
         label_BATTERY = lv_label_create(time_page);
         char buf[32];
-        snprintf(buf, sizeof(buf), "Battery: %.2fV", battery_voltage); // 显示电池电压，保留两位小数
+        snprintf(buf, sizeof(buf), "Battery: %d %%", 0);
         lv_label_set_text(label_BATTERY, buf);
         lv_obj_align_to(label_BATTERY, label_second, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
 
@@ -286,7 +286,8 @@ void time_page_fash_task(void *pvParameters)
         lv_label_set_text(label_running, formatMillis(currentMillis));
 
         // 更新电池电压显示
-        snprintf(buf, sizeof(buf), "Battery: %.2fV", battery_voltage);
+        // Read battery percentage
+        snprintf(buf, sizeof(buf), "Battery: %d %%", PMU.getBatteryPercent());
         lv_label_set_text(label_BATTERY, buf);
 
         time_sync++;

@@ -1,5 +1,5 @@
 #include "UI.h"
-
+#include "hal_disp.hpp"
 // 更新系统信息
 void update_system_info(_lv_timer_t *timer);
 extern LGFX_tft tft;
@@ -30,7 +30,7 @@ lv_obj_t *brightness_slider;
 lv_obj_t *volume_slider;
 static void draw_event_cb(lv_event_t *e);
 static void draw_part_event_cb(lv_event_t *e);
-
+uint8_t courten_volume;
 // 任务信息结构体，用于排序
 typedef struct
 {
@@ -93,6 +93,10 @@ void create_dropdown_screen(void)
     lv_obj_set_style_border_width(status, 0, 0);
     lv_obj_align(status, LV_ALIGN_CENTER, 0, 0);
 
+    //lv_group_t * group = lv_group_create();
+    //获取输入设备
+    //lv_indev_set_group(encoder_indev, group);
+
     lv_obj_t *dropdown_screen_backbtn = lv_btn_create(status);
     lv_obj_set_size(dropdown_screen_backbtn, LV_PCT(100), 20);
     lv_obj_t *img = lv_img_create(dropdown_screen_backbtn);
@@ -102,6 +106,7 @@ void create_dropdown_screen(void)
     lv_label_set_text(label, "BACK");
     lv_obj_align_to(label, img, LV_ALIGN_OUT_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(dropdown_screen_backbtn, dropdown_screen_backbtn_cb, LV_EVENT_CLICKED, NULL);
+    //lv_group_add_obj(group, dropdown_screen_backbtn);
 
     // 添加饼图显示内存占用情况
     meter = lv_meter_create(status);
@@ -144,6 +149,7 @@ void create_dropdown_screen(void)
     lv_label_set_text(wifi_status_label, "WiFi: Unknown");
     wifi_sw = lv_switch_create(status);
     lv_obj_add_event_cb(wifi_sw, wifi_sw_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    //lv_group_add_obj(group, wifi_sw);
 
     // 添加蓝牙状态标签
     bt_status_label = lv_label_create(status);
@@ -151,6 +157,7 @@ void create_dropdown_screen(void)
     ble_sw = lv_switch_create(status);
     lv_obj_add_event_cb(ble_sw, ble_sw_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
     set_switches();
+    //lv_group_add_obj(group, ble_sw);
 
     // 添加滑块调节屏幕亮度
     lv_obj_t *slider_label = lv_label_create(status);
@@ -160,6 +167,7 @@ void create_dropdown_screen(void)
     lv_slider_set_range(brightness_slider, 10, 255);
     lv_slider_set_value(brightness_slider, 50, LV_ANIM_OFF);
     lv_obj_add_event_cb(brightness_slider, brightness_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    //lv_group_add_obj(group, brightness_slider);
     // 读取保存的亮度值
     int saved_brightness = get_brightness_from_nvs();
     // 根据保存的亮度设置屏幕亮度
@@ -174,9 +182,10 @@ void create_dropdown_screen(void)
     lv_slider_set_range(volume_slider, 0, 100);
     lv_slider_set_value(volume_slider, 50, LV_ANIM_OFF);
     lv_obj_add_event_cb(volume_slider, volume_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    uint8_t saved_volume = get_volume_from_nvs();
-    lv_slider_set_value(volume_slider, saved_volume, LV_ANIM_OFF);
-    set_uac_volume(saved_volume);
+    //lv_group_add_obj(group, volume_slider);
+    courten_volume = get_volume_from_nvs();
+    lv_slider_set_value(volume_slider, courten_volume, LV_ANIM_OFF);
+    set_uac_volume(courten_volume);
 
     // 创建任务信息的图表对象
     chart = lv_chart_create(status);
@@ -218,6 +227,7 @@ void create_dropdown_screen(void)
     lv_table_set_col_width(tasks_table, 1, (DISP_HOR_RES - 20) / 3);
     lv_table_set_col_width(tasks_table, 2, (DISP_HOR_RES - 20) / 3);
     lv_obj_add_event_cb(tasks_table, draw_part_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+    //lv_group_add_obj(group, tasks_table);
     //lv_obj_set_style_text_font(tasks_table,&lv_font_unscii_8,0);
 
     // 启动定时器周期性更新系统信息
@@ -293,11 +303,9 @@ void brightness_slider_event_cb(lv_event_t *e)
 void volume_slider_event_cb(lv_event_t *e)
 {
     lv_obj_t *slider = lv_event_get_target(e);
-    uint8_t volume = (uint8_t)lv_slider_get_value(slider);
-
-    ESP_LOGI(TAG, "Adjusting brightness to %d%%", volume);
-    // 调用硬件接口调整屏幕亮度
-    set_uac_volume(volume);
+    courten_volume = (uint8_t)lv_slider_get_value(slider);
+    ESP_LOGI(TAG, "Adjusting courten_volume to %d%%", courten_volume);
+    set_uac_volume(courten_volume);
 }
 // 比较函数，用于按 highWaterMark 从大到小排序
 int compare_task_info(const void *a, const void *b)

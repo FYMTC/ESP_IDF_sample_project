@@ -7,6 +7,7 @@
 #include "driver/i2c.h"
 #include "driver/spi_master.h"
 #include "driver/ledc.h"
+#include "driver/gpio.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -27,9 +28,6 @@
 #include "driver/sdspi_host.h"// SDSPI host driver
 #include "driver/spi_common.h"
 
-#include "driver/gpio.h"
-
-#include "mpu6050.h"
 
 #include <lvgl.h>
 #include "demos/lv_demos.h"
@@ -38,15 +36,19 @@
 #include "game/airplane_shooting_project/flygame.h"
 #include "game/pvz_project/pvz.h"
 
-#include "UI/UI.h"
+#include "UI/UI.h"//TUDO
 #include "hal_lvgl.hpp"
 #include "conf.h"
 
 #include "bt.hpp"
 #include "tasks/audio_task/audio_countrol_task.h"
 #include "tasks/led_task/led_task.h"
+#include "tasks/power_task/axp2101_task.h"
+#include "tasks/brightness_task/brightness_task.h"
+#include "tasks/rtc_task/rtc_task.h"
+#include "pca9554.h"
 
-void i2c_master_init(i2c_port_t i2c_num, gpio_num_t sda_io, gpio_num_t scl_io);// 初始化I2C接口
+void i2c_master_init(i2c_port_t i2c_num);// 初始化I2C接口
 void i2c_scan(i2c_port_t i2c_num); 
 
 void init_nvs();

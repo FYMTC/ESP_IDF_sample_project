@@ -29,8 +29,7 @@
 #include "driver/gpio.h"
 #include "conf.h"
 #include <lvgl.h>
-#include "CTP_driver.hpp"
-#include "hal_disp.hpp"
+
 #include "UI/UI.h"
 
 #ifdef __cplusplus
@@ -40,7 +39,6 @@ extern "C" {
 
 void lv_port_indev_init(void);
 void lv_port_disp_init(void);
-void start_lvgl_task(void);
 
 #ifdef __cplusplus
 }

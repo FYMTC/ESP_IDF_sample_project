@@ -1,11 +1,19 @@
 #include <stdio.h>
 #include <dirent.h>
 #include "esp32_s3_main.h"
-
+#include "mpu6050.h"
 #define class cls
 #include "usb/uac_host.h"
 #undef class
 
+#define MPU6050_ADDR 0x68  // MPU6050的I2C地址
+#define AXP2101_ADDR 0x34  // AXP2101的I2C地址
+#define QMC5883_ADDR 0x0D  // QMC5883的I2C地址
+#define NAU88C22_ADDR 0x1A // NAU88C22的I2C地址
+#define PCA9554_ADDR 0x38  // PCA9554的I2C地址
+#define CST128_ADDR 0x2A   // CST128的I2C地址
+
+static mpu6050_handle_t mpu6050 = NULL;
 static const char *TAG = "main";
 static bool spi_initialized = false; // 标记 SPI 总线是否已初始化
 sdmmc_card_t *card = NULL;
@@ -20,24 +28,68 @@ typedef struct
     uint32_t cpuUsage;
 } TaskInfo;
 
-static mpu6050_handle_t mpu6050 = NULL;
-
-void i2c_master_init(i2c_port_t i2c_num, gpio_num_t sda_io, gpio_num_t scl_io)
+void i2c_master_init(i2c_port_t i2c_num)
 {
-    i2c_config_t i2c_conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = sda_io,
-        .scl_io_num = scl_io,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master = {
-            .clk_speed = I2C_MASTER_FREQ_HZ},
-        .clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL};
-
-    i2c_param_config(i2c_num, &i2c_conf);
-    i2c_driver_install(i2c_num, I2C_MODE_MASTER, 0, 0, 0);
+    i2c_config_t conf;
+    memset(&conf, 0, sizeof(conf));
+    conf.mode = I2C_MODE_MASTER;
+    conf.sda_io_num = I2C_MASTER_SDA_IO_0;
+    conf.scl_io_num = I2C_MASTER_SCL_IO_0;
+    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
+    esp_err_t err = i2c_param_config(i2c_num, &conf);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "I2C param config failed: %s", esp_err_to_name(err));
+        return;
+    }
+    err = i2c_driver_install(i2c_num, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "I2C driver install failed: %s", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "I2C master initialized successfully");
 }
-void i2c_sensor_mpu6050_init(i2c_port_t i2c_num)
+void read_mpu6050_data()
+{
+    // while (1) {
+    mpu6050_acce_value_t acce;
+    mpu6050_gyro_value_t gyro;
+    mpu6050_temp_value_t temp;
+
+    if (mpu6050_get_acce(mpu6050, &acce) == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Accel: X=%.2f Y=%.2f Z=%.2f", acce.acce_x, acce.acce_y, acce.acce_z);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to read accelerometer data");
+    }
+
+    if (mpu6050_get_gyro(mpu6050, &gyro) == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Gyro: X=%.2f Y=%.2f Z=%.2f", gyro.gyro_x, gyro.gyro_y, gyro.gyro_z);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to read gyroscope data");
+    }
+
+    if (mpu6050_get_temp(mpu6050, &temp) == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Temp: %.2f°C", temp.temp);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to read temperature data");
+    }
+
+    // vTaskDelay(pdMS_TO_TICKS(1000));
+    // }
+}
+void i2c_sensor_mpu6050_test(i2c_port_t i2c_num)
 {
     mpu6050 = mpu6050_create(i2c_num, MPU6050_I2C_ADDRESS);
     if (mpu6050 == NULL)
@@ -58,8 +110,24 @@ void i2c_sensor_mpu6050_init(i2c_port_t i2c_num)
         return;
     }
     ESP_LOGI(TAG, "MPU6050 initialized successfully");
+    read_mpu6050_data();
+    mpu6050_sleep(mpu6050);
+    mpu6050_delete(mpu6050);
 }
+void init_external_gpio()
+{
+    // pca9554_set_pin_mode(I2C_NUM_0, 0, 0);
+    // pca9554_set_pin_mode(I2C_NUM_0, 1, 0);
+    // pca9554_write_pin(I2C_NUM_0, 0, 0);
+    // pca9554_write_pin(I2C_NUM_0, 1, 0);
 
+    // pca9554_set_pin_mode(I2C_NUM_0, 7, 0);
+    // pca9554_write_pin(I2C_NUM_0, 7, 0);
+    // vTaskDelay(pdMS_TO_TICKS(10));
+    // pca9554_write_pin(I2C_NUM_0, 7, 1);
+
+    ESP_LOGI(TAG, "external_gpio initialized successfully");
+}
 void i2c_scan(i2c_port_t i2c_num)
 {
     ESP_LOGI(TAG, "Scanning I2C devices on bus %d...", i2c_num);
@@ -72,49 +140,43 @@ void i2c_scan(i2c_port_t i2c_num)
         i2c_master_stop(cmd);
 
         esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
+        // ESP_LOGI(TAG,"I2C SCANING 0X%02X",address);
         i2c_cmd_link_delete(cmd);
 
         if (ret == ESP_OK)
         {
-            ESP_LOGI(TAG, "Found device at address 0x%02X on bus %d", address, i2c_num);
 
             if (address == MPU6050_I2C_ADDRESS)
             { // 如果有MPU6050
-                i2c_sensor_mpu6050_init(i2c_num);
-                // while (1) {
-                mpu6050_acce_value_t acce;
-                mpu6050_gyro_value_t gyro;
-                mpu6050_temp_value_t temp;
-
-                if (mpu6050_get_acce(mpu6050, &acce) == ESP_OK)
-                {
-                    ESP_LOGI(TAG, "Accel: X=%.2f Y=%.2f Z=%.2f", acce.acce_x, acce.acce_y, acce.acce_z);
-                }
-                else
-                {
-                    ESP_LOGE(TAG, "Failed to read accelerometer data");
-                }
-
-                if (mpu6050_get_gyro(mpu6050, &gyro) == ESP_OK)
-                {
-                    ESP_LOGI(TAG, "Gyro: X=%.2f Y=%.2f Z=%.2f", gyro.gyro_x, gyro.gyro_y, gyro.gyro_z);
-                }
-                else
-                {
-                    ESP_LOGE(TAG, "Failed to read gyroscope data");
-                }
-
-                if (mpu6050_get_temp(mpu6050, &temp) == ESP_OK)
-                {
-                    ESP_LOGI(TAG, "Temp: %.2f°C", temp.temp);
-                }
-                else
-                {
-                    ESP_LOGE(TAG, "Failed to read temperature data");
-                }
-
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                //}
+                ESP_LOGI(TAG, "Found MPU6050 at address 0x%02X on bus %d", address, i2c_num);
+                //i2c_sensor_mpu6050_test(i2c_num);
+            }
+            else if (address == AXP2101_ADDR)
+            {
+                ESP_LOGI(TAG, "Found AXP2101 at address 0x%02X on bus %d", address, i2c_num);
+                pmu_init(); // 初始化电源管理芯片
+            }
+            else if (address == PCA9554_ADDR)
+            {
+                ESP_LOGI(TAG, "Found PCA9554 at address 0x%02X on bus %d", address, i2c_num);
+                init_external_gpio();
+            }
+            else if(address == CST128_ADDR)
+            {
+                ESP_LOGI(TAG, "Found CST128 at address 0x%02X on bus %d", address, i2c_num);
+                // cst128_dev_t cst128_dev = {
+                //     .i2c_port = i2c_num,
+                //     .rst_pin = PCA9554_PORT_7,
+                //     .int_pin = PCA9554_PORT_6,
+                //     .rst_valid = 0,
+                //     .range_x = 240,
+                //     .range_y = 320,
+                // };
+                // cst128_init(&cst128_dev);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Found unknow device at address 0x%02X on bus %d", address, i2c_num);
             }
         }
     }
@@ -130,14 +192,14 @@ void initialize_spi_bus()
 
     // 配置 SPI 总线
     spi_bus_config_t bus_cfg = {
-        .mosi_io_num = SD_MOSI_PIN,               // GPIO_NUM_6
-        .miso_io_num = SD_MISO_PIN,               // GPIO_NUM_16
-        .sclk_io_num = SD_CLK_PIN,                // GPIO_NUM_15
-        .quadwp_io_num = -1,                      // 不使用
-        .quadhd_io_num = -1,                      // 不使用
-        .max_transfer_sz = 4000,                  // 最大传输大小
-        .flags = 0,                               // 默认值
-        .intr_flags = 0                           // 默认值
+        .mosi_io_num = SD_MOSI_PIN, // GPIO_NUM_6
+        .miso_io_num = SD_MISO_PIN, // GPIO_NUM_16
+        .sclk_io_num = SD_CLK_PIN,  // GPIO_NUM_15
+        .quadwp_io_num = -1,        // 不使用
+        .quadhd_io_num = -1,        // 不使用
+        .max_transfer_sz = 4000,    // 最大传输大小
+        .flags = 0,                 // 默认值
+        .intr_flags = 0             // 默认值
     };
 
     // 初始化 SPI 总线
@@ -336,9 +398,16 @@ void gpio_task(void *arg)
         }
     }
 }
-void init_nvs(){
-    nvs_flash_init();
-    
+void init_nvs()
+{
+    // 初始化 NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_LOGW(TAG, "Erasing NVS flash...");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
 }
 void sdcardinit(void)
 {
@@ -452,7 +521,8 @@ void print_ram_info()
         {
             // 分配内存来存储排序后的任务信息
             TaskInfo *taskInfoArray = (TaskInfo *)pvPortMalloc(originalTaskCount * sizeof(TaskInfo));
-            if (taskInfoArray == NULL) {
+            if (taskInfoArray == NULL)
+            {
                 ESP_LOGE(TAG, "Failed to allocate task info array");
                 vPortFree(taskStatusArray);
                 return;
@@ -532,19 +602,19 @@ uint8_t get_volume_from_nvs()
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Error opening NVS handle for reading!");
-        return 50; 
+        return 50;
     }
 
-    uint8_t volume = 50; 
+    uint8_t volume = 50;
     err = nvs_get_u8(my_handle, BRIGHTNESS_KEY, &volume);
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
-        volume = 50; 
+        volume = 50;
     }
 
     nvs_close(my_handle);
-    
+
     return volume;
 }
 // 读取 NVS 中的亮度值
@@ -555,7 +625,8 @@ int get_brightness_from_nvs()
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Error opening NVS handle for reading!");
-        return 50; // 默认亮度值 50
+        save_brightness_to_nvs(50); // 保存默认亮度值 50
+        return 50;                  // 默认亮度值 50
     }
 
     int32_t brightness = 50; // 默认亮度
@@ -563,7 +634,8 @@ int get_brightness_from_nvs()
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "Failed to read brightness from NVS, using default.");
-        brightness = 50; // 默认亮度
+        brightness = 50;                    // 默认亮度
+        save_brightness_to_nvs(brightness); // 保存默认亮度值
     }
 
     nvs_close(my_handle);
@@ -663,6 +735,7 @@ bool load_switch_state(const char *key)
     return state == 1;
 }
 
-void set_uac_volume(uint8_t volume){
+void set_uac_volume(uint8_t volume)
+{
     uac_host_device_set_volume(s_spk_dev_handle, volume);
 }
