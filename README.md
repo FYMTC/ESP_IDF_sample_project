@@ -1,39 +1,3 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- |
-
-# _Sample project_
-
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
-
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
-
-
-
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
-
-## Example folder contents
-
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
-
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
-
-Below is short explanation of remaining files in the project folder.
-
-```
-├── CMakeLists.txt  + set(COMPONENT_REQUIRES driver)
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
-```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
-
 ESP32-S3-WROOM-1-N16R8 16MB(QuadSPI) 8MB(OctalSPI)
 
 idf.py add-dependency "lvgl/lvgl^8.3.7"
@@ -46,40 +10,6 @@ git clone https://github.com/lovyan03/LovyanGFX.git
 DMA 和PSRAM 不能一起开
 
 通过 menuconfig 启用配置项：IDF_EXPERIMENTAL_FEATURES SPIRAM_SPEED_120M SPIRAM_MODE_OCT 启用 PSRAM 120M 八进制 （DDR）
-
-main文件夹添加新的源文件，提示undefined reference，需要在源文件的头文件上加上如
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void cube_game_start();
-
-#ifdef __cplusplus
-}
-#endif
-
-这样才能找到void cube_game_start();
-
-1. 推送代码
-添加文件并提交更改
-将所有文件添加到暂存区：
-git add .
-或者添加特定文件：
-git add <文件名>
-2. 提交更改：
-git commit -m "Initial commit"
-将 "Initial commit" 替换为你的提交信息。
-3. 推送到 GitHub 仓库
-如果是第一次推送，需要设置上游分支：
-git push --set-upstream origin main
-main 是默认分支名称。如果你的 GitHub 仓库使用其他分支名称（如 master），请替换为相应的分支名。
-如果不是第一次推送，可以直接运行：
-git push origin main
-
-git add .
-git commit -m "Merge remote changes"
-git push origin main
 
 在components\lvgl__lvgl\env_support\cmake\esp.cmake
 添加fatfs的依赖
